@@ -10,6 +10,10 @@ const hostSource = read('prompts/host.js');
 const stateSource = read('prompts/state.js');
 const listSource = read('prompts/list.js');
 const blocksSource = read('blocks.js');
+const regexHostSource = read('regex/host.js');
+const regexStateSource = read('regex/state.js');
+const regexListSource = read('regex/list.js');
+const regexIndexSource = read('regex/index.js');
 const librarySource = read('prompts/library.js');
 const promptsIndexSource = read('prompts/index.js');
 const styleSource = read('style.css');
@@ -146,6 +150,40 @@ assert.match(librarySource, /event\.key === 'Escape'[\s\S]*?event\.stopPropagati
 assert.match(styleSource, /#sgp-library-dialog \.sgp-dialog-textarea \{[\s\S]*?resize:\s*vertical;/, 'the snippet body must be resizable');
 assert.match(listSource, /function renderLibrary\(\)/, 'the library shelf must render inside the prompt list');
 assert.match(listSource, /data-sgp-library-drop/, 'snippets must be droppable into library folders');
+
+// ----------------------------------------------------------------- regex groups
+// SillyTavern's own sortable rebuilds the script array from the container's
+// direct children. Once rows sit inside group wrappers those children carry no
+// script id, so leaving it enabled would make it save an empty list.
+assert.match(regexHostSource, /export function setNativeSortableEnabled\(enabled\)/, 'the native regex sortable must be switchable');
+assert.match(regexHostSource, /list\.sortable\(enabled \? 'enable' : 'disable'\)/, 'the native sortable must actually be disabled, not just ignored');
+assert.match(regexListSource, /setNativeSortableEnabled\(false\);/, 'taking over must disable the native sortable');
+assert.match(regexListSource, /setNativeSortableEnabled\(true\);/, 'releasing must restore the native sortable');
+assert.match(regexIndexSource, /setNativeSortableEnabled\(true\);/, 'teardown must restore the native sortable');
+
+assert.doesNotMatch(regexHostSource, /^import \{[^}]*\} from '(?:\.\.\/){2,}/m, 'the regex engine must not be reached through a static import');
+assert.match(regexHostSource, /await import\(\/\* webpackIgnore: true \*\/ candidate\)/, 'the regex engine must be loaded dynamically so a failure can degrade');
+assert.match(regexHostSource, /typeof module\?\.getScriptsByType === 'function' && typeof module\?\.saveScriptsByType === 'function'/, 'the bridge must verify the engine API before trusting it');
+assert.match(regexHostSource, /export function scopeKeyFor\(scriptType\)/, 'character and preset scripts need their own group scopes');
+assert.match(regexHostSource, /return `scoped:\$\{avatar \|\| 'none'\}`;/, 'character groups must be keyed by avatar');
+
+assert.match(regexListSource, /if \(scripts\.length && !rows\.size\) \{[\s\S]*?releaseList\(container\);/, 'group chrome must not be drawn before the host has rendered its rows');
+assert.match(regexListSource, /body\.appendChild\(row\)/, 'native rows must be moved, never recreated, so their handlers survive');
+assert.doesNotMatch(regexListSource, /\.regex-script-label[^\n]*innerHTML\s*=/, 'native regex rows must never be rewritten');
+assert.match(regexListSource, /buttons\.appendChild\(select\)/, 'the move control must ride inside the row’s own ellipsis disclosure');
+assert.match(regexListSource, /querySelector\('\.regex_script_buttons'\)/, 'the move control must target the host disclosure container');
+assert.match(regexListSource, /node\.className = 'sgr-parked';/, 'rows filtered out by the search must be parked rather than detached');
+assert.match(styleSource, /\.sgr-parked \{\s*display:\s*none;/, 'parked rows must not take up space');
+assert.match(regexListSource, /row\.querySelector\('\.sgr-move'\)\?\.remove\(\);/, 'releasing must strip the controls this extension added');
+
+assert.match(regexStateSource, /settings\.regexGroups\[key\] = normalizeScope\(settings\.regexGroups\[key\]\);/, 'regex group metadata lives in the extension settings');
+assert.doesNotMatch(regexStateSource, /writePresetExtensionField|writeExtensionField/, 'this extension must not write regex groups into presets or character cards');
+assert.match(regexStateSource, /export async function setGroupDisabled\(scriptType, groupId, disabled\)/, 'a whole regex group must be switchable at once');
+assert.match(regexIndexSource, /catch \(error\) \{[\s\S]*?releaseAll\(\);/, 'a rendering failure must hand the list back to SillyTavern');
+assert.match(regexIndexSource, /if \(!await connectRegexHost\(\)\) return false;/, 'regex grouping must stay inert without the host engine');
+assert.match(regexIndexSource, /node\.closest\?\.\('\.sgr-shell'\)/, 'the observer must ignore our own mutations so reparenting cannot loop');
+assert.match(indexSource, /if \(settings\.enhanceRegex\) void initRegex\(\);/, 'regex grouping must only connect when it is switched on');
+assert.match(indexSource, /data-srg-setting="enhanceRegex"/, 'regex grouping must be exposed in the settings panel');
 
 // ------------------------------------------------------------------- lifecycle
 assert.match(promptsIndexSource, /bind\('OAI_PRESET_CHANGED_AFTER', \(\) => refreshFromHost\(\)\);/, 'switching presets must reload that preset’s groups');

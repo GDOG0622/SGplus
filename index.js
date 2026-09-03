@@ -15,6 +15,7 @@ import {
     applySmartGrouping,
 } from './resources.js';
 import { cleanupPrompts, initPrompts, refreshPromptTakeover } from './prompts/index.js';
+import { cleanupRegex, initRegex, refreshRegexTakeover } from './regex/index.js';
 import { readState } from './prompts/state.js';
 import {
     DISPLAY_NAME,
@@ -57,6 +58,9 @@ function createSettingsPanel() {
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="enhancePromptEntries"><span>接管预设条目列表（分组、收藏、批量）</span></label>
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="promptAutoSaveOnEntryEdit"><span>编辑条目后自动保存预设</span></label>
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="promptDragLocked"><span>锁定条目拖拽（避免误拖）</span></label>
+                <div class="srg-settings-group-title">正则列表</div>
+                <label class="checkbox_label"><input type="checkbox" data-srg-setting="enhanceRegex"><span>接管正则列表（全局 / 角色 / 预设分组）</span></label>
+                <label class="checkbox_label"><input type="checkbox" data-srg-setting="regexDragLocked"><span>锁定正则拖拽（避免误拖）</span></label>
                 <div class="srg-settings-actions">
                     <button type="button" class="menu_button" data-srg-settings-open><span>打开管理器</span></button>
                     <button type="button" class="menu_button" data-srg-settings-all><span>整理全部</span></button>
@@ -82,6 +86,9 @@ function createSettingsPanel() {
             if (key === 'enabled' || key === 'enhancePromptEntries' || key === 'promptDragLocked') {
                 refreshPromptTakeover();
             }
+            if (key === 'enabled' || key === 'enhanceRegex' || key === 'regexDragLocked') {
+                refreshRegexTakeover();
+            }
             updateSettingsStatus();
         });
     }
@@ -103,7 +110,14 @@ function createSettingsPanel() {
     fileInput?.addEventListener('change', async () => {
         const file = fileInput.files?.[0];
         fileInput.value = '';
-        if (file) await importGroupingData(file, { onImported: refreshPromptTakeover });
+        if (file) {
+            await importGroupingData(file, {
+                onImported: () => {
+                    refreshPromptTakeover();
+                    refreshRegexTakeover();
+                },
+            });
+        }
     });
     updateSettingsStatus();
     return true;
@@ -157,10 +171,12 @@ async function boot() {
             if (connected) updateSettingsStatus();
         });
     }
+    if (settings.enhanceRegex) void initRegex();
     console.log(`[${DISPLAY_NAME}] v${VERSION} loaded`);
 }
 
 function cleanup() {
+    cleanupRegex();
     cleanupPrompts();
     cleanupResources();
     document.getElementById(SETTINGS_ID)?.remove();

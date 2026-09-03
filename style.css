@@ -2239,3 +2239,245 @@ html.srg-popover-open body {
         justify-content: center;
     }
 }
+
+/* ---------------------------------------------------------------------------
+   正则列表分组
+
+   This layer only rearranges SillyTavern's own rows, so the rows keep their
+   native look. Everything below is the group chrome around them, in the same
+   vocabulary as the preset entry groups.
+   --------------------------------------------------------------------------- */
+.sgr-shell {
+    --sgr-border: var(--SmartThemeBorderColor, rgba(70, 80, 105, .16));
+    --sgr-accent: var(--SmartThemeQuoteColor, #8fb3d9);
+    display: block;
+}
+
+.sgr-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+}
+
+.sgr-tools .sgr-search {
+    flex: 1 1 180px;
+    min-width: 0;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 9px !important;
+    color: inherit !important;
+    background: rgba(127, 127, 127, .08) !important;
+    border: 1px solid var(--sgr-border) !important;
+    border-radius: 9px !important;
+    font: inherit;
+    outline: none;
+}
+
+.sgr-tools .sgr-search:focus {
+    border-color: var(--sgr-accent) !important;
+}
+
+.sgr-shell .pgm-btn,
+.sgr-shell .pgm-row-btn {
+    color: inherit;
+    background: rgba(127, 127, 127, .08);
+    border: 1px solid var(--sgr-border);
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.sgr-shell .pgm-btn:hover:not(:disabled),
+.sgr-shell .pgm-row-btn:hover:not(:disabled) {
+    background: rgba(127, 127, 127, .16);
+}
+
+.sgr-shell .pgm-btn {
+    min-height: 30px;
+    padding: 0 9px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.sgr-shell .pgm-btn.primary {
+    border-color: var(--sgr-accent);
+    background: rgba(127, 127, 127, .12);
+}
+
+.sgr-shell .pgm-row-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 7px;
+    font-size: 11px;
+    line-height: 1;
+}
+
+.sgr-shell .pgm-row-btn.danger {
+    color: #e98a8a;
+}
+
+.sgr-shell .pgm-row-btn:disabled {
+    opacity: .28;
+    cursor: default;
+}
+
+.sgr-hint {
+    padding: 5px 2px 7px;
+    font-size: 10px;
+    line-height: 1.5;
+    opacity: .52;
+}
+
+.sgr-group {
+    margin-bottom: 6px;
+    background: rgba(127, 127, 127, .035);
+    border: 1px solid var(--sgr-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.sgr-group-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 34px;
+    padding: 0 6px 0 8px;
+    background: rgba(127, 127, 127, .055);
+}
+
+.sgr-group-toggle {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 5px 0;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sgr-shell .pgm-chevron {
+    width: 12px;
+    opacity: .55;
+    transition: transform .14s;
+}
+
+.sgr-group.collapsed .pgm-chevron {
+    transform: rotate(-90deg);
+}
+
+.sgr-shell .pgm-group-name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.25;
+}
+
+.sgr-shell .pgm-count {
+    margin-left: 2px;
+    font-size: 9px;
+    opacity: .55;
+    font-variant-numeric: tabular-nums;
+}
+
+.sgr-group-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 3px;
+}
+
+.sgr-shell .pgm-drag {
+    flex: 0 0 auto;
+    opacity: .34;
+    font-size: 12px;
+    line-height: 1;
+    cursor: grab;
+    user-select: none;
+}
+
+.sgr-shell .pgm-drag:active {
+    cursor: grabbing;
+}
+
+.sgr-group-body {
+    padding: 4px 6px 6px;
+}
+
+.sgr-group.collapsed .sgr-group-body {
+    display: none;
+}
+
+.sgr-loose {
+    margin-bottom: 2px;
+}
+
+.sgr-empty {
+    padding: 10px;
+    text-align: center;
+    font-size: 11px;
+    opacity: .52;
+}
+
+/* Rows filtered out by the search stay in the DOM so the next pass can find
+   them again, but must not take up space. */
+.sgr-parked {
+    display: none;
+}
+
+.sgr-shell .sgp-dragging {
+    opacity: .42;
+}
+
+.sgr-shell .sgp-drag-over {
+    border-color: var(--sgr-accent) !important;
+    box-shadow: inset 0 0 0 1px var(--sgr-accent);
+}
+
+/* The move control rides inside SillyTavern's own ellipsis disclosure, so it is
+   hidden until the user expands the row. */
+.regex-script-label .sgr-move {
+    width: auto;
+    min-width: 96px;
+    max-width: 150px;
+    height: 24px;
+    box-sizing: border-box;
+    margin-left: 4px;
+    padding: 0 6px !important;
+    color: inherit !important;
+    background: rgba(127, 127, 127, .07) !important;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(70, 80, 105, .16)) !important;
+    border-radius: 7px !important;
+    font: inherit;
+    font-size: 12px;
+}
+
+@media (max-width: 700px) {
+    .sgr-group-actions .reorder,
+    .sgr-shell .pgm-drag {
+        display: none;
+    }
+
+    .sgr-tools .pgm-btn {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sgr-shell .pgm-chevron {
+        transition: none;
+    }
+}

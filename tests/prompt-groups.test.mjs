@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { setContext } from '../shared.js';
 import { buildBlocks, normalizePromptState, readCompatibleState } from '../prompts/state.js';
 import { normalizeLibrary } from '../prompts/library.js';
+import { normalizeScope } from '../regex/state.js';
+import { applyBlocks, buildBlocks as buildBlockModel, moveBlockBy, placeBlockAt } from '../blocks.js';
 
 function withExtensions(extensions) {
     setContext({ chatCompletionSettings: { preset_settings_openai: 'Default', extensions } });
@@ -158,5 +160,55 @@ function withExtensions(extensions) {
     assert.equal(library.items[2].groupId, null, 'a snippet pointing at a missing folder falls back to ungrouped');
 }
 
+// ------------------------------------------------------------ regex group scope
+{
+    const scope = normalizeScope({
+        groups: [{ id: 'r1', name: '  思维链  ' }, { id: 'r1', name: '重复应丢弃' }, { id: 'r2', name: '' }],
+        assignments: { a: 'r1', b: 'r2', c: 'gone' },
+    });
+    assert.equal(scope.groups.length, 2, 'duplicate regex group ids must collapse');
+    assert.equal(scope.groups[0].name, '思维链', 'regex group names must be trimmed');
+    assert.equal(scope.groups[1].name, '未命名分组');
+    assert.equal(scope.groups[0].collapsed, true, 'regex groups must default to collapsed');
+    assert.deepEqual(scope.assignments, { a: 'r1', b: 'r2' }, 'assignments to missing groups must be dropped');
+}
+
+{
+    assert.deepEqual(normalizeScope(null), { groups: [], assignments: {} }, 'a missing scope must normalize to an empty one');
+}
+
+// ------------------------------------------------- shared block model utilities
+{
+    // The same model drives both grouping layers, so exercise it on regex-shaped
+    // items too: an id lives on `id` rather than `identifier`.
+    const scripts = ['a', 'b', 'c', 'd'].map(id => ({ id, scriptName: id }));
+    const groups = [{ id: 'g1', name: '一组' }];
+    const assignments = { b: 'g1', d: 'g1' };
+    const blocks = buildBlockModel({ items: scripts, idOf: script => script.id, assignments, groups });
+    assert.deepEqual(blocks.map(block => block.id), ['a', 'g1', 'c'], 'a regex group sits where its first member sits');
+
+    assert.equal(applyBlocks(blocks, scripts), true, 'applying blocks must rewrite the host array');
+    assert.deepEqual(scripts.map(script => script.id), ['a', 'b', 'd', 'c'], 'group members must become contiguous');
+    assert.equal(applyBlocks(blocks, scripts), false, 'a second apply must be a no-op');
+
+    const moved = moveBlockBy(blocks, 'g1', -1);
+    assert.deepEqual(moved.map(block => block.id), ['g1', 'a', 'c'], 'a block must be able to move up');
+    assert.equal(moveBlockBy(blocks, 'g1', -5), null, 'moving past the edge must be refused');
+    assert.equal(moveBlockBy(blocks, 'missing', 1), null, 'moving an unknown block must be refused');
+
+    const placed = placeBlockAt(blocks, 'a', 'c', true);
+    assert.deepEqual(placed.map(block => block.id), ['g1', 'c', 'a'], 'a block must be able to drop after another');
+    assert.equal(placeBlockAt(blocks, 'a', 'a'), null, 'dropping a block on itself must be refused');
+}
+
+{
+    // Refusing to change the item count is what protects the host array from a
+    // partial or duplicated write.
+    const items = [{ id: 'a' }, { id: 'b' }];
+    const bogus = [{ type: 'item', id: 'a', group: null, members: [items[0]] }];
+    assert.equal(applyBlocks(bogus, items), false, 'a block set that would lose an item must be rejected');
+    assert.deepEqual(items.map(item => item.id), ['a', 'b'], 'the host array must be left untouched');
+}
+
 setContext(null);
-console.log('prompt-groups.test.mjs: prompt entry grouping and library models verified');
+console.log('prompt-groups.test.mjs: prompt entry, library and regex models verified');

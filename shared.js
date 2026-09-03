@@ -1,6 +1,6 @@
 export const MODULE_NAME = 'smart_resource_groups';
 export const DISPLAY_NAME = 'SGplus';
-export const VERSION = '3.0.0';
+export const VERSION = '3.1.0';
 
 export const ROOT_ID = 'srg-root';
 export const POPOVER_ID = 'srg-popover';
@@ -25,6 +25,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
     promptAutoSaveOnEntryEdit: false,
     promptGroups: {},
     promptLibrary: { version: 1, items: [], groups: [], collapsed: true },
+    enhanceRegex: true,
+    regexDragLocked: false,
+    regexGroups: {},
 });
 
 /** Live bindings: importers observe these reassignments. */
@@ -126,6 +129,7 @@ export function loadSettings() {
     if (!settings.promptLibrary || typeof settings.promptLibrary !== 'object' || Array.isArray(settings.promptLibrary)) {
         settings.promptLibrary = { version: 1, items: [], groups: [], collapsed: true };
     }
+    if (!settings.regexGroups || typeof settings.regexGroups !== 'object' || Array.isArray(settings.regexGroups)) settings.regexGroups = {};
     settings.schemaVersion = 3;
     settings.minGroupSize = Math.max(2, Math.min(12, Number(settings.minGroupSize) || 2));
     return settings;
