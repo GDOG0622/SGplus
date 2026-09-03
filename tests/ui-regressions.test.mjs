@@ -9,6 +9,7 @@ const resourcesSource = read('resources.js');
 const hostSource = read('prompts/host.js');
 const stateSource = read('prompts/state.js');
 const listSource = read('prompts/list.js');
+const blocksSource = read('blocks.js');
 const librarySource = read('prompts/library.js');
 const promptsIndexSource = read('prompts/index.js');
 const styleSource = read('style.css');
@@ -99,7 +100,8 @@ assert.match(stateSource, /const legacy = root\.entryGrouping;/, 'the older entr
 assert.match(stateSource, /export function renamePreset\(oldName, newName\)/, 'renaming a preset must carry its groups across');
 assert.match(stateSource, /export function forgetPreset\(presetName\)/, 'deleting a preset must drop its metadata');
 assert.doesNotMatch(stateSource, /fetch\(['"`]\/api\/presets\/save/, 'this extension must never write preset files behind the user’s back');
-assert.match(stateSource, /if \(next\.length !== order\.length\) return false;/, 'reordering must refuse to run if it would change the entry count');
+assert.match(blocksSource, /if \(next\.length !== items\.length\) return false;/, 'reordering must refuse to run if it would change the entry count');
+assert.match(blocksSource, /export function buildBlocks\(\{ items, idOf, assignments, groups \}\)/, 'preset entries and regex scripts must share one block model');
 
 // -------------------------------------------------------------- list behaviours
 assert.doesNotMatch(listSource, /<li class="sgp-block sgp-loose-block"[^>]*>\$\{renderRow/, 'a loose row must not be wrapped in another <li>, which the HTML parser would flatten');

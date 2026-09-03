@@ -1,3 +1,4 @@
+import { applyBlocks as applyBlockOrder, buildBlocks as buildBlockModel, moveBlockBy, placeBlockAt } from '../blocks.js';
 import { normalizeName } from '../grouping.js';
 import { clone, context, DISPLAY_NAME, scheduleSave, settings, uid } from '../shared.js';
 import { getPromptById, getPromptOrder, saveHostServiceSettings } from './host.js';
@@ -259,38 +260,12 @@ export function isSuppressed(identifier) {
  * @returns {{type: 'item'|'group', id: string, group?: object, members: {identifier: string, enabled: boolean}[]}[]}
  */
 export function buildBlocks(state = readState(), order = getPromptOrder()) {
-    const blocks = [];
-    const emitted = new Set();
-    const membersByGroup = new Map();
-
-    for (const entry of order) {
-        const identifier = entry?.identifier;
-        if (!identifier) continue;
-        const groupId = state.assignments[identifier];
-        if (!groupId || !findGroup(state, groupId)) continue;
-        if (!membersByGroup.has(groupId)) membersByGroup.set(groupId, []);
-        membersByGroup.get(groupId).push(entry);
-    }
-
-    for (const entry of order) {
-        const identifier = entry?.identifier;
-        if (!identifier) continue;
-        const groupId = state.assignments[identifier];
-        const group = groupId ? findGroup(state, groupId) : null;
-        if (!group) {
-            blocks.push({ type: 'item', id: identifier, members: [entry] });
-            continue;
-        }
-        if (emitted.has(group.id)) continue;
-        emitted.add(group.id);
-        blocks.push({ type: 'group', id: group.id, group, members: membersByGroup.get(group.id) || [] });
-    }
-
-    for (const group of state.groups) {
-        if (emitted.has(group.id)) continue;
-        blocks.push({ type: 'group', id: group.id, group, members: [] });
-    }
-    return blocks;
+    return buildBlockModel({
+        items: order,
+        idOf: entry => entry?.identifier || '',
+        assignments: state.assignments,
+        groups: state.groups,
+    });
 }
 
 /**
@@ -301,56 +276,25 @@ export function buildBlocks(state = readState(), order = getPromptOrder()) {
 export function normalizeOrder(state = readState()) {
     const order = getPromptOrder();
     if (!order.length) return false;
-    const blocks = buildBlocks(state, order);
-    const next = [];
-    for (const block of blocks) next.push(...block.members);
-    if (next.length !== order.length) return false;
-    const changed = next.some((entry, index) => entry !== order[index]);
-    if (!changed) return false;
-    order.splice(0, order.length, ...next);
-    saveHostServiceSettings();
-    return true;
+    return commitBlocks(buildBlocks(state, order), order);
 }
 
 /** Moves a whole block (a loose prompt or an entire group) by one position. */
 export function moveBlock(blockId, delta) {
-    const state = readState();
     const order = getPromptOrder();
-    const blocks = buildBlocks(state, order);
-    const index = blocks.findIndex(block => block.id === blockId);
-    const target = index + delta;
-    if (index < 0 || target < 0 || target >= blocks.length) return false;
-    [blocks[index], blocks[target]] = [blocks[target], blocks[index]];
-    return applyBlocks(blocks, order);
+    const next = moveBlockBy(buildBlocks(readState(), order), blockId, delta);
+    return next ? commitBlocks(next, order) : false;
 }
 
 /** Drops a block before or after another block. */
 export function placeBlock(sourceId, targetId, placeAfter = false) {
-    if (!sourceId || sourceId === targetId) return false;
-    const state = readState();
     const order = getPromptOrder();
-    const blocks = buildBlocks(state, order);
-    const sourceIndex = blocks.findIndex(block => block.id === sourceId);
-    if (sourceIndex < 0) return false;
-    const [block] = blocks.splice(sourceIndex, 1);
-    if (!targetId) {
-        blocks.push(block);
-    } else {
-        const targetIndex = blocks.findIndex(item => item.id === targetId);
-        if (targetIndex < 0) {
-            blocks.splice(sourceIndex, 0, block);
-            return false;
-        }
-        blocks.splice(targetIndex + (placeAfter ? 1 : 0), 0, block);
-    }
-    return applyBlocks(blocks, order);
+    const next = placeBlockAt(buildBlocks(readState(), order), sourceId, targetId, placeAfter);
+    return next ? commitBlocks(next, order) : false;
 }
 
-function applyBlocks(blocks, order) {
-    const next = [];
-    for (const block of blocks) next.push(...block.members);
-    if (next.length !== order.length) return false;
-    order.splice(0, order.length, ...next);
+function commitBlocks(blocks, order) {
+    if (!applyBlockOrder(blocks, order)) return false;
     saveHostServiceSettings();
     return true;
 }
