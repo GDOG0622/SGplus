@@ -271,7 +271,6 @@ function renderToolbar(state, blocks) {
                     <option value="__new">＋ 新建分组…</option>
                 </select>
                 <button type="button" class="pgm-btn" data-sgp-batch="all">全选</button>
-                <button type="button" class="pgm-btn" data-sgp-select-mode="off">退出多选</button>
             </div>
         `
         : '';
@@ -710,8 +709,11 @@ function bindListEvents(list, { dragEnabled, searching }) {
             const groupId = button.dataset.sgpPower;
             const group = findGroup(readState(), groupId);
             if (!group) return;
-            setGroupEnabled(groupId, group.enabled === false);
-            toast(group.enabled === false ? `“${group.name}”已恢复参与生成` : `“${group.name}”已整组静音`, 'success');
+            // `group` is the live state object, so decide the message first.
+            const name = group.name;
+            const shouldEnable = group.enabled === false;
+            setGroupEnabled(groupId, shouldEnable);
+            toast(shouldEnable ? `“${name}”已恢复参与生成` : `“${name}”已整组静音`, 'success');
             scheduleHostRender(0);
             rerender();
         });
@@ -884,14 +886,19 @@ export function bindGlobalRowMenuDismissal() {
         if (!menu) return;
         if (!menu.contains(event.target) && !event.target?.closest?.('[data-sgp-menu]')) closeRowMenu();
     };
+    // Escape must close this menu only. Without stopping propagation the host
+    // would also collapse the whole settings drawer behind it.
     const dismissOnEscape = event => {
-        if (event.key === 'Escape') closeRowMenu();
+        if (event.key !== 'Escape' || !document.getElementById(MENU_ID)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        closeRowMenu();
     };
     document.addEventListener('pointerdown', dismiss, true);
-    document.addEventListener('keydown', dismissOnEscape);
+    document.addEventListener('keydown', dismissOnEscape, true);
     return () => {
         document.removeEventListener('pointerdown', dismiss, true);
-        document.removeEventListener('keydown', dismissOnEscape);
+        document.removeEventListener('keydown', dismissOnEscape, true);
         closeRowMenu();
     };
 }

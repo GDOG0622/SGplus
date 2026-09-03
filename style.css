@@ -1844,12 +1844,28 @@ html.srg-popover-open body {
 }
 
 #completion_prompt_manager_list .sgp-star {
-    opacity: .22;
+    opacity: .24;
 }
 
 #completion_prompt_manager_list .sgp-star.active {
     color: var(--sgp-accent);
     opacity: .95;
+}
+
+/* On pointer devices an idle star column is visual noise, so reveal it with
+   the row. Touch devices have no hover, so there it stays visible and the row
+   menu keeps a labelled fallback either way. */
+@media (hover: hover) {
+    #completion_prompt_manager_list .sgp-star:not(.active) {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    #completion_prompt_manager_list .sgp-row:hover .sgp-star:not(.active),
+    #completion_prompt_manager_list .sgp-row:focus-within .sgp-star:not(.active) {
+        opacity: .3;
+        pointer-events: auto;
+    }
 }
 
 #completion_prompt_manager_list .sgp-row-muted .completion_prompt_manager_prompt_name,

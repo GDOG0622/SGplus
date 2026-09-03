@@ -1,6 +1,20 @@
-Gaga Resource Groups Personal Use License 1.0
+SGplus Personal Use License 1.0
 
-Copyright (c) 2026 puppyyoho. All rights reserved.
+SGplus is a derivative work. It combines and builds upon:
+
+  * SillyTavern-SmartGroups (嘎嘎资源分组)
+    Copyright (c) 2026 puppyyoho. All rights reserved.
+    https://github.com/puppyyoho/SillyTavern-SmartGroups
+    Source of the resource grouping engine, quick picker and group manager.
+
+  * ST-BaiBai-Tools (柏宝箱)
+    Copyright (c) baibai-git.
+    https://github.com/baibai-git/ST-BaiBai-Tools
+    Source of the preset prompt-entry feature design that was reimplemented here.
+
+All rights in the original works remain with their respective authors. This
+license restates the upstream personal-use terms and applies them to SGplus as
+a whole. It grants you no rights in the original works beyond those below.
 
 1. Personal-use permission
 
@@ -10,8 +24,8 @@ copies for that purpose.
 
 2. Restrictions
 
-Unless you first obtain the copyright holder's explicit written permission,
-you may not:
+Unless you first obtain explicit written permission from the copyright holders
+of the original works named above, you may not:
 
 - copy or redistribute the software or any modified version to another person;
 - publish, mirror, re-upload, repackage, sublicense, rent, lease, or otherwise
@@ -19,7 +33,8 @@ you may not:
 - sell the software, charge for access to it, include it in a paid bundle, or
   use it in any product, service, or activity intended for commercial advantage
   or monetary compensation;
-- remove or alter copyright, authorship, or license notices; or
+- remove or alter copyright, authorship, or license notices, including the
+  attributions above; or
 - represent the software or any modified version as your own original work.
 
 3. Public repository hosting
@@ -27,14 +42,15 @@ you may not:
 When this software is hosted in a public GitHub repository, GitHub's Terms of
 Service may permit users to view and fork the repository through GitHub's
 functionality. That platform permission does not grant permission to sell,
-commercialize, sublicense, republish, or redistribute the software outside
-the rights expressly granted in this license.
+commercialize, sublicense, republish, or redistribute the software outside the
+rights expressly granted in this license, and it does not waive the upstream
+authors' rights.
 
 4. Commercial or redistribution permission
 
 Any commercial use, redistribution, republication, or inclusion in another
-project requires a separate written license from the copyright holder. Please
-contact puppyyoho through the project's GitHub repository to request permission.
+project requires separate written permission from the upstream authors named
+above. Please contact them through their project repositories.
 
 5. Termination
 
@@ -46,7 +62,7 @@ copies in your possession or control, except where retention is required by law.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL ANY COPYRIGHT
 HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT
 OF, OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
 
