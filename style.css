@@ -2434,7 +2434,12 @@ html.srg-popover-open body {
 
 #completion_prompt_manager_list .sgp-group-head {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto !important;
+    /* Three direct children: drag handle, title toggle and actions.  Keeping
+       only two columns lets CSS grid auto-place the ellipsis on a second row
+       under narrow/custom themes. */
+    grid-template-columns: max-content minmax(0, 1fr) max-content !important;
+    grid-template-rows: minmax(28px, auto) !important;
+    grid-auto-flow: column !important;
     align-items: center !important;
     gap: 6px !important;
     min-height: 0;
@@ -2442,6 +2447,22 @@ html.srg-popover-open body {
     border-bottom: 1px solid color-mix(in srgb, var(--sgp-border) 70%, transparent);
     background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 75%, transparent);
     touch-action: manipulation;
+}
+
+#completion_prompt_manager_list .sgp-group-head > .sgp-block-drag {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+}
+
+#completion_prompt_manager_list .sgp-group-head > .sgp-group-toggle {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+}
+
+#completion_prompt_manager_list .sgp-group-head > .sgp-group-actions {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
 }
 
 #completion_prompt_manager_list .sgp-group.collapsed .sgp-group-head,

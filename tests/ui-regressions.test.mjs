@@ -134,6 +134,8 @@ assert.match(listSource, /data-sgp-menu-move/, 'moving to a group must live insi
 assert.match(listSource, /data-sgp-group-menu=/, 'group headers must expose one ellipsis menu instead of five loose actions');
 assert.match(listSource, /data-sgp-group-action="power"[\s\S]*?data-sgp-group-action="up"[\s\S]*?data-sgp-group-action="down"[\s\S]*?data-sgp-group-action="rename"[\s\S]*?data-sgp-group-action="delete"/, 'the group ellipsis must contain power, move, rename and delete actions');
 assert.match(styleSource, /li\.sgp-row \{\s*grid-template-columns:\s*minmax\(0, 1fr\) max-content max-content !important;\s*column-gap:\s*6px !important;/, 'prompt controls and tokens must use content-sized columns without the old fixed token gap');
+assert.match(styleSource, /\.sgp-group-head \{[\s\S]*?grid-template-columns:\s*max-content minmax\(0, 1fr\) max-content !important;/, 'group headers need separate drag, title and actions columns so ellipsis cannot wrap below the title');
+assert.match(styleSource, /\.sgp-group-head > \.sgp-group-actions \{\s*grid-column:\s*3 !important;\s*grid-row:\s*1 !important;/, 'group actions must be pinned to the first row under custom themes');
 assert.match(styleSource, /\.sgp-row-actions-open \.sgp-prompt-actions[\s\S]*?display:\s*inline-flex !important;/, 'row actions must expand inline rather than in a detached popover');
 assert.match(styleSource, /min-width:\s*max-content !important;/, 'host span widths must not collapse the horizontal action strip');
 
