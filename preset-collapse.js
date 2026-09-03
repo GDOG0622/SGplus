@@ -32,6 +32,8 @@ function topLevelBlocks() {
     ].filter(element => (
         element instanceof HTMLElement
         && element.isConnected
+        && !element.matches('#completion_prompt_manager, #advanced-ai-config-block, .advanced-ai-config-block')
+        && !element.querySelector('#completion_prompt_manager, #advanced-ai-config-block, .advanced-ai-config-block')
         && !element.closest(`#${WRAPPER_ID}`)
         && !element.closest(`#${EXTERNAL_WRAPPER_ID}`)
     ));
@@ -82,8 +84,12 @@ function moveIntoWrapper(wrapper, blocks) {
 }
 
 function wrap() {
-    const blocks = topLevelBlocks();
     let wrapper = document.getElementById(WRAPPER_ID);
+    // Once created, the drawer owns a fixed set of parameter blocks. Re-running
+    // discovery after Prompt Manager mounts can otherwise capture its parent and
+    // incorrectly hide the whole entry list inside "预设设置".
+    if (wrapper instanceof HTMLElement) return true;
+    const blocks = topLevelBlocks();
     if (!wrapper && blocks.length) wrapper = makeWrapper(blocks[0]);
     if (!(wrapper instanceof HTMLElement)) return false;
     return moveIntoWrapper(wrapper, blocks);

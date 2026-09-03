@@ -117,24 +117,25 @@ assert.match(styleSource, /@media \(max-width: 700px\)[\s\S]*?\.sgp-group-head \
 assert.match(listSource, /function syncBatchBar\(list\)/, 'batch controls must react to checkbox changes');
 assert.match(listSource, /control\.disabled = !hasSelection;/, 'batch buttons must become usable as soon as something is selected');
 assert.match(listSource, /syncBatchBar\(list\);/, 'the checkbox handler must refresh the batch bar');
-assert.match(listSource, /if \(event\.key !== 'Escape' \|\| \(!document\.getElementById\(MENU_ID\) && !document\.getElementById\(GROUP_MENU_ID\)\)\) return;[\s\S]*?event\.stopPropagation\(\);/, 'Escape must close only the active row or group menu, not the host drawer behind it');
+assert.match(listSource, /const hasOpenMenu =[\s\S]*?if \(event\.key !== 'Escape' \|\| !hasOpenMenu\) return;[\s\S]*?event\.stopPropagation\(\);/, 'Escape must close only the active inline menu, not the host drawer behind it');
 assert.match(listSource, /const shouldEnable = liveGroup\.enabled === false;\s*setGroupEnabled\(groupId, shouldEnable\);/, 'the mute toast must be decided before the live state is mutated');
 assert.match(listSource, /const group = findGroup\(readState\(\), groupId\);\s*setGroupCollapsed\(groupId, group\?\.collapsed === false\);/, 'collapsing must read the previous value before writing');
-// The row must stay down to a name, one menu and the native switch: every
-// secondary action belongs behind the ellipsis.
+// Rows keep the frequent edit/toggle controls visible; less common actions
+// expand horizontally into the name cell without changing the row height.
 assert.doesNotMatch(listSource, /data-sgp-favorite/, 'favourites were removed and must not come back');
 assert.doesNotMatch(listSource, /sgp-star/, 'the star column must not reappear in the row');
 assert.doesNotMatch(listSource, /data-sgp-mirror/, 'the favourites mirror rows must be gone');
-assert.match(listSource, /prompt_manager_prompt_controls">\$\{menuButton\}\$\{toggleButton\}/, 'a row may only carry the ellipsis menu and the native toggle');
-assert.match(listSource, /data-sgp-menu-action="edit"/, 'editing must live inside the ellipsis menu');
-assert.match(listSource, /data-sgp-menu-action="copy"/, 'copying must live inside the ellipsis menu');
-assert.match(listSource, /data-sgp-menu-action="detach"/, 'removing must live inside the ellipsis menu');
-assert.match(listSource, /data-sgp-menu-action="library"/, 'saving to the library must live inside the ellipsis menu');
+assert.match(listSource, /prompt_manager_prompt_controls">\$\{menuActions\}\$\{menuButton\}\$\{editButton\}\$\{toggleButton\}/, 'row controls must follow the compact actions, ellipsis, edit, toggle order');
+assert.match(listSource, /data-sgp-row-action="\$\{action\}"/, 'secondary row actions must use the inline ellipsis disclosure');
+assert.match(listSource, /actionButton\('copy'/, 'copying must live inside the ellipsis disclosure');
+assert.match(listSource, /actionButton\('detach'/, 'removing must live inside the ellipsis disclosure');
+assert.match(listSource, /actionButton\('library'/, 'saving to the library must live inside the ellipsis disclosure');
 assert.match(listSource, /data-sgp-menu-move/, 'moving to a group must live inside the ellipsis menu');
 assert.match(listSource, /data-sgp-group-menu=/, 'group headers must expose one ellipsis menu instead of five loose actions');
-assert.doesNotMatch(listSource, /data-sgp-power=/, 'group power must not remain loose in the header');
 assert.match(listSource, /data-sgp-group-action="power"[\s\S]*?data-sgp-group-action="up"[\s\S]*?data-sgp-group-action="down"[\s\S]*?data-sgp-group-action="rename"[\s\S]*?data-sgp-group-action="delete"/, 'the group ellipsis must contain power, move, rename and delete actions');
 assert.match(styleSource, /li\.sgp-row \{\s*grid-template-columns:\s*minmax\(0, 1fr\) max-content max-content !important;\s*column-gap:\s*6px !important;/, 'prompt controls and tokens must use content-sized columns without the old fixed token gap');
+assert.match(styleSource, /\.sgp-row-actions-open \.sgp-prompt-actions[\s\S]*?display:\s*inline-flex !important;/, 'row actions must expand inline rather than in a detached popover');
+assert.match(styleSource, /min-width:\s*max-content !important;/, 'host span widths must not collapse the horizontal action strip');
 
 assert.match(listSource, /export function isTakeoverEnabled\(\)/, 'the takeover must be switchable');
 assert.match(listSource, /settings\?\.enabled && settings\?\.enhancePromptEntries/, 'the master switch must also disable the prompt entry takeover');
@@ -156,7 +157,7 @@ assert.match(librarySource, /function uniqueIdentifier\(\)/, 'inserted prompts m
 assert.match(librarySource, /function uniqueInsertName\(name\)/, 'inserted prompts must not collide with an existing name');
 assert.match(librarySource, /event\.key === 'Escape'[\s\S]*?event\.stopPropagation\(\);/, 'the snippet editor must swallow Escape instead of closing the host drawer');
 assert.match(styleSource, /#sgp-library-dialog \.sgp-dialog-textarea \{[\s\S]*?resize:\s*vertical;/, 'the snippet body must be resizable');
-assert.match(listSource, /function renderLibrary\(\)/, 'the library shelf must render inside the prompt list');
+assert.match(listSource, /function syncLibraryHost\(list\)[\s\S]*?list\.before\(host\);/, 'the global library must sit above and outside the prompt list');
 assert.match(listSource, /data-sgp-library-drop/, 'snippets must be droppable into library folders');
 
 // ----------------------------------------------------------------- regex groups
@@ -209,6 +210,8 @@ assert.match(indexSource, /data-srg-setting="promptAutoSaveOnEntryEdit"/, 'the a
 assert.match(indexSource, /data-srg-setting="collapsePresetInterface"/, 'preset interface collapsing must be exposed in the settings panel');
 assert.match(presetCollapseSource, /#range_block_openai/, 'the preset sampling controls must be included in the collapsible section');
 assert.match(presetCollapseSource, /#openai_settings/, 'the OpenAI preset setting blocks must be included in the collapsible section');
+assert.match(presetCollapseSource, /!element\.querySelector\('#completion_prompt_manager, #advanced-ai-config-block, \.advanced-ai-config-block'\)/, 'the collapsible settings drawer must never swallow Prompt Manager or advanced tools');
+assert.match(presetCollapseSource, /if \(wrapper instanceof HTMLElement\) return true;/, 'an existing settings drawer must keep a fixed ownership boundary');
 assert.match(presetCollapseSource, /te-preset-wrapper/, 'an existing layout extension collapse must win instead of creating nested drawers');
 assert.match(presetCollapseSource, /export function cleanupPresetInterfaceCollapse\(\)/, 'preset interface collapsing must be fully reversible');
 

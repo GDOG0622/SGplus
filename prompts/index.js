@@ -14,6 +14,7 @@ import {
     bindGlobalRowMenuDismissal,
     closeRowMenu,
     isTakeoverEnabled,
+    removeLibraryHost,
     renderGroupedList,
     rerender,
     resetView,
@@ -171,6 +172,7 @@ export function refreshPromptTakeover() {
     closeRowMenu();
     if (!isTakeoverEnabled()) {
         resetView();
+        removeLibraryHost();
         scheduleHostRender(0);
         return;
     }
@@ -180,6 +182,7 @@ export function refreshPromptTakeover() {
 
 export function cleanupPrompts() {
     closeRowMenu();
+    removeLibraryHost();
     closeLibraryDialog();
     if (isPatched()) removePatches();
     cleanupFns.splice(0).forEach(fn => {

@@ -4,7 +4,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "puppyyoho & baibai-git",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "homePage": "https://github.com/GDOG0622/SGplus",
   "auto_update": true,
   "minimum_client_version": "1.12.0"
