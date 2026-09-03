@@ -1,0 +1,10 @@
+{
+  "name": "sillytavern-sgplus",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/grouping.test.mjs && node tests/prompt-groups.test.mjs && node tests/ui-regressions.test.mjs",
+    "dev": "node dev/server.mjs"
+  }
+}
