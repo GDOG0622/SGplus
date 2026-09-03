@@ -9,6 +9,7 @@ const resourcesSource = read('resources.js');
 const hostSource = read('prompts/host.js');
 const stateSource = read('prompts/state.js');
 const listSource = read('prompts/list.js');
+const librarySource = read('prompts/library.js');
 const promptsIndexSource = read('prompts/index.js');
 const styleSource = read('style.css');
 const manifest = JSON.parse(read('manifest.json'));
@@ -109,6 +110,18 @@ assert.match(listSource, /syncBatchBar\(list\);/, 'the checkbox handler must ref
 assert.match(listSource, /if \(event\.key !== 'Escape' \|\| !document\.getElementById\(MENU_ID\)\) return;[\s\S]*?event\.stopPropagation\(\);/, 'Escape must close only the row menu, not the host drawer behind it');
 assert.match(listSource, /const shouldEnable = group\.enabled === false;\s*setGroupEnabled\(groupId, shouldEnable\);/, 'the mute toast must be decided before the live state is mutated');
 assert.match(listSource, /const group = findGroup\(readState\(\), groupId\);\s*setGroupCollapsed\(groupId, group\?\.collapsed === false\);/, 'collapsing must read the previous value before writing');
+// The row must stay down to a name, one menu and the native switch: every
+// secondary action belongs behind the ellipsis.
+assert.doesNotMatch(listSource, /data-sgp-favorite/, 'favourites were removed and must not come back');
+assert.doesNotMatch(listSource, /sgp-star/, 'the star column must not reappear in the row');
+assert.doesNotMatch(listSource, /data-sgp-mirror/, 'the favourites mirror rows must be gone');
+assert.match(listSource, /prompt_manager_prompt_controls">\$\{menuButton\}\$\{toggleButton\}/, 'a row may only carry the ellipsis menu and the native toggle');
+assert.match(listSource, /data-sgp-menu-action="edit"/, 'editing must live inside the ellipsis menu');
+assert.match(listSource, /data-sgp-menu-action="copy"/, 'copying must live inside the ellipsis menu');
+assert.match(listSource, /data-sgp-menu-action="detach"/, 'removing must live inside the ellipsis menu');
+assert.match(listSource, /data-sgp-menu-action="library"/, 'saving to the library must live inside the ellipsis menu');
+assert.match(listSource, /data-sgp-menu-move/, 'moving to a group must live inside the ellipsis menu');
+
 assert.match(listSource, /export function isTakeoverEnabled\(\)/, 'the takeover must be switchable');
 assert.match(listSource, /settings\?\.enabled && settings\?\.enhancePromptEntries/, 'the master switch must also disable the prompt entry takeover');
 assert.match(listSource, /class="drag-handle ui-sortable-handle"/, 'the drag handle must keep the class SillyTavern uses to reveal it');
@@ -117,6 +130,21 @@ assert.match(listSource, /prefix\}prompt_manager_prompt/, 'rows must keep SillyT
 assert.match(listSource, /getScrollContainer\(\)/, 'rerendering must preserve the host scroll position');
 assert.doesNotMatch(listSource, /innerHTML\s*=\s*[^`]*\$\{prompt\.name\}/, 'prompt names must never be interpolated unescaped');
 
+// --------------------------------------------------------------- global library
+assert.match(librarySource, /export function normalizeLibrary\(input\)/, 'library payloads must be sanitized before use');
+assert.match(librarySource, /Array\.isArray\(input\) \? \{ items: input \}/, 'a bare array of snippets must still import');
+assert.doesNotMatch(librarySource, /BaiBaoKu|baibaoku/, 'the library must not depend on the upstream custom backend');
+assert.doesNotMatch(librarySource, /indexedDB/, 'the library lives in extension settings so it follows the user across browsers');
+assert.match(librarySource, /settings\.promptLibrary = normalizeLibrary\(library\);/, 'every library mutation must persist a normalized copy');
+assert.match(librarySource, /manager\.addPrompt\(\{ name: uniqueInsertName\(item\.name\), role: 'system', content: item\.content \}, identifier\)/, 'inserting must create a fresh prompt rather than a reference');
+assert.match(librarySource, /order\.push\(\{ identifier, enabled: true \}\)/, 'an inserted snippet must be registered in the native prompt order');
+assert.match(librarySource, /function uniqueIdentifier\(\)/, 'inserted prompts must never reuse an existing identifier');
+assert.match(librarySource, /function uniqueInsertName\(name\)/, 'inserted prompts must not collide with an existing name');
+assert.match(librarySource, /event\.key === 'Escape'[\s\S]*?event\.stopPropagation\(\);/, 'the snippet editor must swallow Escape instead of closing the host drawer');
+assert.match(styleSource, /#sgp-library-dialog \.sgp-dialog-textarea \{[\s\S]*?resize:\s*vertical;/, 'the snippet body must be resizable');
+assert.match(listSource, /function renderLibrary\(\)/, 'the library shelf must render inside the prompt list');
+assert.match(listSource, /data-sgp-library-drop/, 'snippets must be droppable into library folders');
+
 // ------------------------------------------------------------------- lifecycle
 assert.match(promptsIndexSource, /bind\('OAI_PRESET_CHANGED_AFTER', \(\) => refreshFromHost\(\)\);/, 'switching presets must reload that preset’s groups');
 assert.match(promptsIndexSource, /bind\('OAI_PRESET_IMPORT_READY', \(\) => refreshFromHost\(\{ collapseAll: true \}\)\);/, 'an imported preset must open collapsed');
@@ -124,5 +152,11 @@ assert.match(promptsIndexSource, /bind\('PRESET_RENAMED'/, 'a rename must migrat
 assert.match(promptsIndexSource, /bind\('PRESET_DELETED'/, 'a delete must drop metadata');
 assert.match(promptsIndexSource, /if \(!await connectHost\(\)\) return false;/, 'the extension must stay inert when host internals are unavailable');
 assert.match(indexSource, /if \(settings\.enhancePromptEntries\) \{\s*void initPrompts\(\)/, 'the prompt takeover must only connect when it is switched on');
+assert.match(promptsIndexSource, /function bindEntryEditAutoSave\(\)/, 'saving a preset after an entry edit must be opt-in wiring');
+assert.match(promptsIndexSource, /if \(!settings\?\.promptAutoSaveOnEntryEdit \|\| !isTakeoverEnabled\(\)\) return;/, 'auto-saving must respect its setting');
+assert.match(promptsIndexSource, /#completion_prompt_manager_popup_entry_form_save/, 'auto-saving must hook the native entry save button');
+assert.match(hostSource, /export function requestPresetSave\(\)/, 'preset saving must go through the host button the user would click');
+assert.doesNotMatch(indexSource, /promptFavoritesEnabled/, 'the favourites setting must be gone');
+assert.match(indexSource, /data-srg-setting="promptAutoSaveOnEntryEdit"/, 'the auto-save setting must be exposed in the panel');
 
 console.log('ui-regressions.test.mjs: inherited and SGplus regressions verified');

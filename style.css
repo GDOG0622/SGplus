@@ -1700,8 +1700,7 @@ html.srg-popover-open body {
 }
 
 /* Groups ------------------------------------------------------------------- */
-#completion_prompt_manager #completion_prompt_manager_list li.sgp-group,
-#completion_prompt_manager #completion_prompt_manager_list li.sgp-favorites {
+#completion_prompt_manager #completion_prompt_manager_list li.sgp-group {
     background: rgba(127, 127, 127, .035);
     border: 1px solid var(--sgp-border);
     border-radius: 12px;
@@ -1738,8 +1737,7 @@ html.srg-popover-open body {
     transition: transform .14s;
 }
 
-#completion_prompt_manager_list .sgp-group.collapsed .pgm-chevron,
-#completion_prompt_manager_list .sgp-favorites.collapsed .pgm-chevron {
+#completion_prompt_manager_list .sgp-group.collapsed .pgm-chevron {
     transform: rotate(-90deg);
 }
 
@@ -1757,12 +1755,6 @@ html.srg-popover-open body {
     font-size: 9px;
     opacity: .55;
     font-variant-numeric: tabular-nums;
-}
-
-#completion_prompt_manager_list .sgp-fav-icon {
-    margin-right: 3px;
-    color: var(--sgp-accent);
-    font-size: .82em;
 }
 
 #completion_prompt_manager_list .sgp-group-actions {
@@ -1813,8 +1805,7 @@ html.srg-popover-open body {
     list-style: none;
 }
 
-#completion_prompt_manager_list .sgp-group.collapsed .sgp-group-body,
-#completion_prompt_manager_list .sgp-favorites.collapsed .sgp-group-body {
+#completion_prompt_manager_list .sgp-group.collapsed .sgp-group-body {
     display: none;
 }
 
@@ -1841,31 +1832,6 @@ html.srg-popover-open body {
 #completion_prompt_manager #completion_prompt_manager_list li.sgp-row .prompt_manager_prompt_controls {
     gap: 2px;
     justify-content: flex-end;
-}
-
-#completion_prompt_manager_list .sgp-star {
-    opacity: .24;
-}
-
-#completion_prompt_manager_list .sgp-star.active {
-    color: var(--sgp-accent);
-    opacity: .95;
-}
-
-/* On pointer devices an idle star column is visual noise, so reveal it with
-   the row. Touch devices have no hover, so there it stays visible and the row
-   menu keeps a labelled fallback either way. */
-@media (hover: hover) {
-    #completion_prompt_manager_list .sgp-star:not(.active) {
-        opacity: 0;
-        pointer-events: none;
-    }
-
-    #completion_prompt_manager_list .sgp-row:hover .sgp-star:not(.active),
-    #completion_prompt_manager_list .sgp-row:focus-within .sgp-star:not(.active) {
-        opacity: .3;
-        pointer-events: auto;
-    }
 }
 
 #completion_prompt_manager_list .sgp-row-muted .completion_prompt_manager_prompt_name,
@@ -1905,10 +1871,6 @@ html.srg-popover-open body {
     transform: translateY(-50%);
     accent-color: var(--sgp-accent);
     cursor: pointer;
-}
-
-#completion_prompt_manager_list .sgp-row-mirror .drag-handle {
-    display: none !important;
 }
 
 #completion_prompt_manager_list .sgp-dragging {
@@ -2022,8 +1984,7 @@ html.srg-popover-open body {
 }
 
 @media (max-width: 700px) {
-    #completion_prompt_manager #completion_prompt_manager_list li.sgp-group,
-    #completion_prompt_manager #completion_prompt_manager_list li.sgp-favorites {
+    #completion_prompt_manager #completion_prompt_manager_list li.sgp-group {
         background: transparent;
     }
 
@@ -2049,5 +2010,232 @@ html.srg-popover-open body {
 @media (prefers-reduced-motion: reduce) {
     #completion_prompt_manager_list .pgm-chevron {
         transition: none;
+    }
+}
+
+/* Global library -----------------------------------------------------------
+   A cross-preset snippet shelf. It sits below the preset's own entries and
+   uses a dashed edge so it reads as a separate shelf rather than more entries.
+   ------------------------------------------------------------------------- */
+#completion_prompt_manager #completion_prompt_manager_list li.sgp-library {
+    margin-top: 10px;
+    background: rgba(127, 127, 127, .025);
+    border: 1px dashed var(--sgp-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+#completion_prompt_manager_list .sgp-library-head {
+    background: transparent;
+}
+
+#completion_prompt_manager_list .sgp-library-icon {
+    margin-right: 4px;
+    opacity: .6;
+    font-size: .82em;
+}
+
+#completion_prompt_manager_list .sgp-library.collapsed .sgp-library-body {
+    display: none;
+}
+
+#completion_prompt_manager_list .sgp-library-body {
+    padding: 0 7px 7px;
+}
+
+#completion_prompt_manager_list .sgp-library-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 2px 0 7px;
+}
+
+#completion_prompt_manager #completion_prompt_manager_list ul.sgp-library-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+#completion_prompt_manager #completion_prompt_manager_list li.sgp-library-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    margin: 0;
+    padding: 2px 4px 2px 8px;
+    background: rgba(127, 127, 127, .05);
+    border-radius: 8px;
+    cursor: grab;
+}
+
+#completion_prompt_manager #completion_prompt_manager_list li.sgp-library-row:active {
+    cursor: grabbing;
+}
+
+#completion_prompt_manager_list .sgp-library-row:hover {
+    background: rgba(127, 127, 127, .1);
+}
+
+#completion_prompt_manager_list .sgp-library-name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    line-height: 1.25;
+}
+
+#completion_prompt_manager_list .sgp-library-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 3px;
+}
+
+#completion_prompt_manager_list .sgp-library-group {
+    margin-top: 6px;
+    border: 1px solid var(--sgp-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+#completion_prompt_manager_list .sgp-library-group-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 32px;
+    padding: 0 6px 0 8px;
+    background: rgba(127, 127, 127, .055);
+}
+
+#completion_prompt_manager_list .sgp-library-group.collapsed .pgm-chevron {
+    transform: rotate(-90deg);
+}
+
+#completion_prompt_manager #completion_prompt_manager_list .sgp-library-group ul.sgp-library-list {
+    padding: 4px 5px 5px;
+}
+
+#completion_prompt_manager #completion_prompt_manager_list li.sgp-library-empty {
+    display: block;
+    margin: 0;
+    padding: 8px;
+    text-align: center;
+    font-size: 11px;
+    opacity: .5;
+}
+
+#completion_prompt_manager_list .sgp-library-empty-large {
+    padding: 16px 12px;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.6;
+    opacity: .55;
+}
+
+/* Snippet editor ----------------------------------------------------------- */
+#sgp-library-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 100005;
+    display: grid;
+    place-items: center;
+    padding: 14px;
+    background: rgba(0, 0, 0, .58);
+    box-sizing: border-box;
+}
+
+#sgp-library-dialog .sgp-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    width: min(620px, 100%);
+    max-height: calc(100dvh - 28px);
+    padding: 14px;
+    overflow: auto;
+    color: var(--SmartThemeBodyColor, #46516a);
+    background: var(--SmartThemeBlurTintColor, #f7f4ee);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(70, 80, 105, .16));
+    border-radius: 16px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, .48);
+    font-family: var(--mainFontFamily, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+    font-size: 13px;
+    line-height: 1.32;
+}
+
+#sgp-library-dialog .sgp-dialog-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .04em;
+}
+
+#sgp-library-dialog .sgp-dialog-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    opacity: .78;
+}
+
+#sgp-library-dialog .sgp-dialog-input,
+#sgp-library-dialog .sgp-dialog-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 9px !important;
+    color: inherit !important;
+    background: rgba(127, 127, 127, .08) !important;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(70, 80, 105, .16)) !important;
+    border-radius: 9px !important;
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+    opacity: 1;
+}
+
+#sgp-library-dialog .sgp-dialog-textarea {
+    min-height: 180px;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+#sgp-library-dialog .sgp-dialog-input:focus,
+#sgp-library-dialog .sgp-dialog-textarea:focus {
+    border-color: var(--SmartThemeQuoteColor, #8fb3d9) !important;
+}
+
+#sgp-library-dialog .sgp-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+#sgp-library-dialog .pgm-btn {
+    min-height: 32px;
+    padding: 0 12px;
+    color: inherit;
+    background: rgba(127, 127, 127, .08);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(70, 80, 105, .16));
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+#sgp-library-dialog .pgm-btn:hover {
+    background: rgba(127, 127, 127, .16);
+}
+
+#sgp-library-dialog .pgm-btn.primary {
+    border-color: var(--SmartThemeQuoteColor, #8fb3d9);
+    background: rgba(127, 127, 127, .14);
+}
+
+@media (max-width: 700px) {
+    #completion_prompt_manager_list .sgp-library-toolbar .pgm-btn {
+        flex: 1 1 auto;
+        justify-content: center;
     }
 }

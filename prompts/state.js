@@ -34,8 +34,6 @@ export function createEmptyState() {
         updatedAt: 0,
         groups: [],
         assignments: {},
-        favorites: [],
-        favoritesCollapsed: false,
     };
 }
 
@@ -68,9 +66,6 @@ export function normalizePromptState(input) {
         output.assignments[id] = String(groupId);
     }
 
-    const favorites = Array.isArray(input.favorites) ? input.favorites : [];
-    output.favorites = [...new Set(favorites.map(value => String(value || '')).filter(Boolean))];
-    output.favoritesCollapsed = Boolean(input.favoritesCollapsed);
     return output;
 }
 
@@ -84,7 +79,6 @@ export function readCompatibleState() {
     if (!root) return null;
 
     const baibaiGroups = root[BAIBAI_NAMESPACE]?.presetPromptGroups;
-    const baibaiFavorites = root[BAIBAI_NAMESPACE]?.presetPromptFavorites;
     if (baibaiGroups && typeof baibaiGroups === 'object') {
         const state = createEmptyState();
         const groups = Array.isArray(baibaiGroups.groups) ? baibaiGroups.groups : [];
@@ -107,11 +101,7 @@ export function readCompatibleState() {
             if (!promptId || !known.has(groupId)) continue;
             state.assignments[String(promptId)] = groupId;
         }
-        if (baibaiFavorites && Array.isArray(baibaiFavorites.promptIds)) {
-            state.favorites = [...new Set(baibaiFavorites.promptIds.map(value => String(value || '')).filter(Boolean))];
-            state.favoritesCollapsed = Boolean(baibaiFavorites.collapsed);
-        }
-        if (state.groups.length || state.favorites.length) return state;
+        if (state.groups.length) return state;
     }
 
     const legacy = root.entryGrouping;
@@ -160,7 +150,7 @@ function readMirrorState(presetName) {
  * always saved immediately (so nothing is lost when a preset is switched
  * without being saved), and a portable copy inside the preset's own
  * `extensions` field (so groups travel with preset export and import).
- * @returns {{version: number, updatedAt: number, groups: object[], assignments: Record<string, string>, favorites: string[], favoritesCollapsed: boolean}}
+ * @returns {{version: number, updatedAt: number, groups: object[], assignments: Record<string, string>}}
  */
 export function readState() {
     const presetName = getPresetName();
@@ -244,7 +234,6 @@ export function pruneState(state) {
     for (const promptId of Object.keys(state.assignments)) {
         if (!known.has(promptId) || !groupIds.has(state.assignments[promptId])) delete state.assignments[promptId];
     }
-    state.favorites = state.favorites.filter(promptId => known.has(promptId));
     return state;
 }
 
@@ -258,10 +247,6 @@ export function isSuppressed(identifier) {
     const groupId = state.assignments[identifier];
     if (!groupId) return false;
     return findGroup(state, groupId)?.enabled === false;
-}
-
-export function isFavorite(identifier) {
-    return readState().favorites.includes(identifier);
 }
 
 /**
@@ -488,27 +473,6 @@ export function setGroupEnabled(groupId, enabled) {
         group.enabled = Boolean(enabled);
         return true;
     });
-}
-
-export function setFavoritesCollapsed(collapsed) {
-    commit(state => {
-        state.favoritesCollapsed = Boolean(collapsed);
-    });
-}
-
-export function toggleFavorite(identifier) {
-    if (!identifier) return false;
-    let favorited = false;
-    commit(state => {
-        const index = state.favorites.indexOf(identifier);
-        if (index >= 0) {
-            state.favorites.splice(index, 1);
-        } else {
-            state.favorites.push(identifier);
-            favorited = true;
-        }
-    });
-    return favorited;
 }
 
 export function clearGroups() {

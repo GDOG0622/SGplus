@@ -55,7 +55,7 @@ function createSettingsPanel() {
                 <label class="srg-number-setting"><span>自动成组所需的最少条目数</span><input type="number" min="2" max="12" step="1" data-srg-setting="minGroupSize"></label>
                 <div class="srg-settings-group-title">预设条目（Chat Completion）</div>
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="enhancePromptEntries"><span>接管预设条目列表（分组、收藏、批量）</span></label>
-                <label class="checkbox_label"><input type="checkbox" data-srg-setting="promptFavoritesEnabled"><span>显示条目收藏区</span></label>
+                <label class="checkbox_label"><input type="checkbox" data-srg-setting="promptAutoSaveOnEntryEdit"><span>编辑条目后自动保存预设</span></label>
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="promptDragLocked"><span>锁定条目拖拽（避免误拖）</span></label>
                 <div class="srg-settings-actions">
                     <button type="button" class="menu_button" data-srg-settings-open><span>打开管理器</span></button>
@@ -79,7 +79,7 @@ function createSettingsPanel() {
             if (key === 'minGroupSize') input.value = String(settings[key]);
             refreshAllMounts();
             scheduleSave();
-            if (key === 'enabled' || key === 'enhancePromptEntries' || key === 'promptFavoritesEnabled' || key === 'promptDragLocked') {
+            if (key === 'enabled' || key === 'enhancePromptEntries' || key === 'promptDragLocked') {
                 refreshPromptTakeover();
             }
             updateSettingsStatus();
@@ -118,8 +118,8 @@ function updateSettingsStatus() {
     let promptSummary = '';
     try {
         const promptState = readState();
-        if (promptState.groups.length || promptState.favorites.length) {
-            promptSummary = ` 当前预设有 ${promptState.groups.length} 个条目分组、${promptState.favorites.length} 个收藏条目。`;
+        if (promptState.groups.length) {
+            promptSummary = ` 当前预设有 ${promptState.groups.length} 个条目分组。`;
         }
     } catch {
         // The prompt manager may not be ready yet.

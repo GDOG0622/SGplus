@@ -33,22 +33,36 @@ import {
     scheduleHostRender,
 } from './host.js';
 import {
+    chooseInsertGroup,
+    createLibraryGroup,
+    deleteLibraryGroup,
+    deleteLibraryItem,
+    editLibraryItemDialog,
+    exportLibrary,
+    importLibrary,
+    insertLibraryItems,
+    moveLibraryItem,
+    readLibrary,
+    renameLibraryGroup,
+    setLibraryCollapsed,
+    setLibraryGroupCollapsed,
+    storePromptInLibrary,
+    commitLibrary,
+} from './library.js';
+import {
     assignPrompt,
     buildBlocks,
     createGroup,
     deleteGroup,
     findGroup,
-    isFavorite,
     moveBlock,
     movePromptWithin,
     normalizeOrder,
     placeBlock,
     readState,
     renameGroup,
-    setFavoritesCollapsed,
     setGroupCollapsed,
     setGroupEnabled,
-    toggleFavorite,
 } from './state.js';
 
 const MENU_ID = 'sgp-row-menu';
@@ -103,7 +117,7 @@ function roleIconFor(prompt) {
  * when it meets another one, so a loose row carries its own block id rather
  * than living inside a wrapper element.
  */
-function renderRow(entry, { mirror = false, dragEnabled = true, counts, prefix, state, blockId = '' } = {}) {
+function renderRow(entry, { dragEnabled = true, counts, prefix, state, blockId = '' } = {}) {
     const identifier = entry.identifier;
     const prompt = getPromptById(identifier);
     if (!prompt) return '';
@@ -111,7 +125,6 @@ function renderRow(entry, { mirror = false, dragEnabled = true, counts, prefix, 
     const groupId = state.assignments[identifier] || '';
     const group = groupId ? findGroup(state, groupId) : null;
     const muted = group?.enabled === false;
-    const favorited = state.favorites.includes(identifier);
     const selected = view.selection.has(identifier);
     const name = escapeHtml(prompt.name ?? identifier);
 
@@ -131,7 +144,6 @@ function renderRow(entry, { mirror = false, dragEnabled = true, counts, prefix, 
         prompt.marker ? `${prefix}prompt_manager_marker` : '',
         isImportant ? `${prefix}prompt_manager_important` : '',
         muted ? 'sgp-row-muted' : '',
-        mirror ? 'sgp-row-mirror' : '',
         selected ? 'sgp-row-selected' : '',
         blockId ? 'sgp-loose-row' : '',
     ].filter(Boolean).join(' ');
@@ -152,26 +164,23 @@ function renderRow(entry, { mirror = false, dragEnabled = true, counts, prefix, 
         }
     }
 
-    const nameBody = !mirror && isInspectionAllowed(prompt)
+    const nameBody = isInspectionAllowed(prompt)
         ? `<a title="${name}" class="prompt-manager-inspect-action">${name}</a>`
         : `<span title="${name}">${name}</span>`;
 
-    const leading = view.selecting && !mirror
+    const leading = view.selecting
         ? `<input type="checkbox" class="sgp-check" data-sgp-select-row="${escapeHtml(identifier)}" ${selected ? 'checked' : ''} aria-label="选择 ${name}">`
-        : (!mirror && dragEnabled ? '<span class="drag-handle ui-sortable-handle" data-sgp-row-handle>☰</span>' : '');
+        : (dragEnabled ? '<span class="drag-handle ui-sortable-handle" data-sgp-row-handle>☰</span>' : '');
 
-    const favoriteButton = settings.promptFavoritesEnabled
-        ? `<span class="sgp-star ${favorited ? 'active' : ''}" data-sgp-favorite="${escapeHtml(identifier)}" title="${favorited ? '取消收藏' : '收藏此条目'}"><i class="fa-solid fa-star"></i></span>`
-        : '';
-    const menuButton = mirror
-        ? ''
-        : `<span class="sgp-more" data-sgp-menu="${escapeHtml(identifier)}" title="更多操作"><i class="fa-solid fa-ellipsis"></i></span>`;
+    // Every secondary action lives behind this one button, which keeps the row
+    // down to a name, a menu and the native switch.
+    const menuButton = `<span class="sgp-more" data-sgp-menu="${escapeHtml(identifier)}" title="更多操作"><i class="fa-solid fa-ellipsis"></i></span>`;
     const toggleButton = isToggleAllowed(prompt)
         ? `<span class="prompt-manager-toggle-action ${enabled ? 'fa-solid fa-toggle-on' : 'fa-solid fa-toggle-off'}" data-sgp-toggle="${escapeHtml(identifier)}" title="${enabled ? '停用此条目' : '启用此条目'}"></span>`
         : '<span class="fa-solid"></span>';
 
     return `
-        <li class="${classes}" data-pm-identifier="${escapeHtml(identifier)}" ${blockId ? `data-sgp-block="${escapeHtml(blockId)}"` : ''} ${mirror ? 'data-sgp-mirror="true"' : ''} draggable="${!mirror && dragEnabled && !view.selecting ? 'true' : 'false'}">
+        <li class="${classes}" data-pm-identifier="${escapeHtml(identifier)}" ${blockId ? `data-sgp-block="${escapeHtml(blockId)}"` : ''} draggable="${dragEnabled && !view.selecting ? 'true' : 'false'}">
             ${leading}
             <span class="${prefix}prompt_manager_prompt_name" data-pm-name="${name}">
                 ${isMarker ? '<span class="fa-fw fa-solid fa-thumb-tack" title="Marker"></span>' : ''}
@@ -186,7 +195,7 @@ function renderRow(entry, { mirror = false, dragEnabled = true, counts, prefix, 
                 ${muted ? '<small class="sgp-muted-badge" title="所属分组已静音，本条目不会参与生成">静音</small>' : ''}
             </span>
             <span class="sgp-controls-cell">
-                <span class="prompt_manager_prompt_controls">${favoriteButton}${menuButton}${toggleButton}</span>
+                <span class="prompt_manager_prompt_controls">${menuButton}${toggleButton}</span>
             </span>
             <span class="prompt_manager_prompt_tokens" data-pm-tokens="${escapeHtml(tokens)}"><span class="${warningClass}" title="${escapeHtml(warningTitle)}"> </span>${escapeHtml(tokens)}</span>
         </li>
@@ -229,23 +238,72 @@ function renderGroupBlock(block, { index, total, counts, prefix, state, dragEnab
     `;
 }
 
-function renderFavorites({ counts, prefix, state }) {
-    if (!settings.promptFavoritesEnabled) return '';
-    const order = getPromptOrder();
-    const entries = state.favorites
-        .map(identifier => order.find(entry => entry?.identifier === identifier))
-        .filter(entry => entry && matchesSearch(entry.identifier));
-    if (!entries.length) return '';
-    const collapsed = normalizeName(view.search) ? false : Boolean(state.favoritesCollapsed);
-    const body = collapsed ? '' : renderRows(entries, { counts, prefix, state, mirror: true, dragEnabled: false });
+/**
+ * The cross-preset snippet shelf, rendered after the preset's own entries and
+ * collapsed by default so it never competes with the list above it.
+ */
+function renderLibrary() {
+    const library = readLibrary();
+    const query = normalizeName(view.search).toLocaleLowerCase();
+    const matches = item => !query || item.name.toLocaleLowerCase().includes(query);
+    const visible = library.items.filter(matches);
+    const collapsed = query ? !visible.length : library.collapsed !== false;
+
+    const renderItems = items => items.map(item => `
+        <li class="sgp-library-row" data-sgp-library-item="${escapeHtml(item.id)}">
+            <span class="sgp-library-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+            <span class="sgp-library-actions">
+                <button type="button" class="pgm-row-btn" data-sgp-library-insert="${escapeHtml(item.id)}" title="插入到当前预设">＋</button>
+                <button type="button" class="pgm-row-btn" data-sgp-library-edit="${escapeHtml(item.id)}" title="编辑内容">✎</button>
+                <button type="button" class="pgm-row-btn danger" data-sgp-library-delete="${escapeHtml(item.id)}" title="从库中删除">×</button>
+            </span>
+        </li>
+    `).join('');
+
+    const sections = [];
+    const loose = visible.filter(item => !item.groupId);
+    if (loose.length) sections.push(`<ul class="sgp-library-list" data-sgp-library-drop="">${renderItems(loose)}</ul>`);
+
+    for (const group of library.groups) {
+        const items = visible.filter(item => item.groupId === group.id);
+        if (query && !items.length && !group.name.toLocaleLowerCase().includes(query)) continue;
+        const groupCollapsed = query ? false : group.collapsed !== false;
+        sections.push(`
+            <div class="sgp-library-group ${groupCollapsed ? 'collapsed' : ''}" data-sgp-library-group="${escapeHtml(group.id)}">
+                <div class="sgp-library-group-head">
+                    <button type="button" class="pgm-group-toggle sgp-group-toggle" data-sgp-library-collapse="${escapeHtml(group.id)}" aria-expanded="${groupCollapsed ? 'false' : 'true'}">
+                        <span class="pgm-chevron">▾</span><strong class="pgm-group-name">${escapeHtml(group.name)}</strong><span class="pgm-count">${items.length}</span>
+                    </button>
+                    <div class="pgm-group-actions">
+                        <button type="button" class="pgm-row-btn" data-sgp-library-group-rename="${escapeHtml(group.id)}" title="重命名分组">✎</button>
+                        <button type="button" class="pgm-row-btn danger" data-sgp-library-group-delete="${escapeHtml(group.id)}" title="删除分组（条目回到未分组）">×</button>
+                    </div>
+                </div>
+                <ul class="sgp-library-list" data-sgp-library-drop="${escapeHtml(group.id)}">${groupCollapsed ? '' : (renderItems(items) || '<li class="sgp-library-empty">这个分组还是空的</li>')}</ul>
+            </div>
+        `);
+    }
+
+    const body = collapsed
+        ? ''
+        : `
+            <div class="sgp-library-toolbar">
+                <button type="button" class="pgm-btn" data-sgp-library-add-group>＋ 新建库分组</button>
+                <button type="button" class="pgm-btn" data-sgp-library-export>导出库</button>
+                <button type="button" class="pgm-btn" data-sgp-library-import>导入库</button>
+                <input type="file" accept="application/json,.json" data-sgp-library-import-file hidden>
+            </div>
+            ${sections.join('') || '<div class="sgp-library-empty-large">全局库还是空的。在任意条目的“⋯”菜单里选“存入全局库”，就能把它攒起来跨预设复用。</div>'}
+        `;
+
     return `
-        <li class="sgp-block pgm-group sgp-favorites ${collapsed ? 'collapsed' : ''}">
-            <div class="pgm-group-head sgp-group-head">
-                <button type="button" class="pgm-group-toggle sgp-group-toggle" data-sgp-collapse-favorites aria-expanded="${collapsed ? 'false' : 'true'}">
-                    <span class="pgm-chevron">▾</span><strong class="pgm-group-name"><i class="fa-solid fa-star sgp-fav-icon"></i> 收藏</strong><span class="pgm-count">${entries.length}</span>
+        <li class="sgp-block sgp-library ${collapsed ? 'collapsed' : ''}">
+            <div class="pgm-group-head sgp-group-head sgp-library-head">
+                <button type="button" class="pgm-group-toggle sgp-group-toggle" data-sgp-library-toggle aria-expanded="${collapsed ? 'false' : 'true'}">
+                    <span class="pgm-chevron">▾</span><strong class="pgm-group-name"><i class="fa-solid fa-box-archive sgp-library-icon"></i> 全局库</strong><span class="pgm-count">${library.items.length}</span>
                 </button>
             </div>
-            <ul class="pgm-group-body sgp-group-body">${body}</ul>
+            <div class="sgp-library-body">${body}</div>
         </li>
     `;
 }
@@ -263,7 +321,6 @@ function renderToolbar(state, blocks) {
                 <span class="sgp-batch-count">已选 ${selectedCount} 条</span>
                 <button type="button" class="pgm-btn" data-sgp-batch="enable" ${selectedCount ? '' : 'disabled'}>启用</button>
                 <button type="button" class="pgm-btn" data-sgp-batch="disable" ${selectedCount ? '' : 'disabled'}>停用</button>
-                <button type="button" class="pgm-btn" data-sgp-batch="favorite" ${selectedCount ? '' : 'disabled'}>收藏</button>
                 <select class="pgm-move sgp-batch-move" data-sgp-batch-move ${selectedCount ? '' : 'disabled'}>
                     <option value="">移动到…</option>
                     <option value="__none">未分组</option>
@@ -324,8 +381,8 @@ export async function renderGroupedList() {
             <span class="prompt_manager_prompt_tokens">Tokens</span>
         </li>
         <li class="${prefix}prompt_manager_list_separator"><hr></li>
-        ${renderFavorites({ counts, prefix, state })}
         ${sections.join('') || '<li class="pgm-empty sgp-empty sgp-empty-large">没有匹配的条目</li>'}
+        ${renderLibrary()}
     `;
 
     destroyNativeSortable();
@@ -353,7 +410,7 @@ export function rerender() {
 }
 
 function rowFor(list, identifier) {
-    return list.querySelector(`[data-pm-identifier="${CSS.escape(identifier)}"]:not([data-sgp-mirror])`);
+    return list.querySelector(`[data-pm-identifier="${CSS.escape(identifier)}"]`);
 }
 
 /** Flips a prompt on or off in place, then defers the expensive token recount. */
@@ -437,7 +494,6 @@ function openRowMenu(anchor, identifier) {
     const prompt = getPromptById(identifier);
     if (!prompt) return;
     const groupId = state.assignments[identifier] || '';
-    const favorited = state.favorites.includes(identifier);
 
     const options = ['<option value="__none"' + (groupId ? '' : ' selected') + '>未分组</option>']
         .concat(state.groups.map(group => `<option value="${escapeHtml(group.id)}" ${group.id === groupId ? 'selected' : ''}>${escapeHtml(group.name)}</option>`))
@@ -456,10 +512,10 @@ function openRowMenu(anchor, identifier) {
             <button type="button" class="pgm-btn" data-sgp-menu-action="up">↑ 上移</button>
             <button type="button" class="pgm-btn" data-sgp-menu-action="down">↓ 下移</button>
         </div>
-        <button type="button" class="sgp-menu-item" data-sgp-menu-action="favorite">${favorited ? '取消收藏' : '收藏此条目'}</button>
         ${isEditAllowed(prompt) ? '<button type="button" class="sgp-menu-item" data-sgp-menu-action="edit">编辑条目</button>' : ''}
         ${isInspectionAllowed(prompt) ? '<button type="button" class="sgp-menu-item" data-sgp-menu-action="inspect">查看内容</button>' : ''}
         <button type="button" class="sgp-menu-item" data-sgp-menu-action="copy">复制条目</button>
+        <button type="button" class="sgp-menu-item" data-sgp-menu-action="library">存入全局库</button>
         ${isDeletionAllowed(prompt) ? '<button type="button" class="sgp-menu-item danger" data-sgp-menu-action="detach">从预设移除</button>' : ''}
     `;
     document.getElementById('srg-root')?.appendChild(menu) ?? document.body.appendChild(menu);
@@ -502,13 +558,12 @@ function openRowMenu(anchor, identifier) {
                 if (movePromptWithin(identifier, action === 'up' ? -1 : 1)) rerender();
                 return;
             }
-            if (action === 'favorite') {
-                toggleFavorite(identifier);
-                rerender();
-                return;
-            }
             if (action === 'copy') {
                 copyEntry(identifier);
+                return;
+            }
+            if (action === 'library') {
+                if (storePromptInLibrary(identifier)) rerender();
                 return;
             }
             if (action === 'edit') {
@@ -602,17 +657,6 @@ async function runBatchAction(action, list) {
         rerender();
         return;
     }
-    if (action === 'favorite') {
-        const state = readState();
-        const shouldAdd = targets.some(identifier => !state.favorites.includes(identifier));
-        for (const identifier of targets) {
-            const favorited = readState().favorites.includes(identifier);
-            if (favorited !== shouldAdd) toggleFavorite(identifier);
-        }
-        toast(`已${shouldAdd ? '收藏' : '取消收藏'} ${targets.length} 个条目`, 'success');
-        rerender();
-        return;
-    }
     if (action === 'all') {
         const order = getPromptOrder();
         const all = order.map(entry => entry?.identifier).filter(identifier => identifier && matchesSearch(identifier));
@@ -699,11 +743,6 @@ function bindListEvents(list, { dragEnabled, searching }) {
             rerender();
         });
     });
-    list.querySelector('[data-sgp-collapse-favorites]')?.addEventListener('click', () => {
-        if (searching) return;
-        setFavoritesCollapsed(!readState().favoritesCollapsed);
-        rerender();
-    });
     list.querySelectorAll('[data-sgp-power]').forEach(button => {
         button.addEventListener('click', () => {
             const groupId = button.dataset.sgpPower;
@@ -761,13 +800,6 @@ function bindListEvents(list, { dragEnabled, searching }) {
             toggleEntry(list, element.dataset.sgpToggle);
         });
     });
-    list.querySelectorAll('[data-sgp-favorite]').forEach(element => {
-        element.addEventListener('click', event => {
-            event.stopPropagation();
-            toggleFavorite(element.dataset.sgpFavorite);
-            rerender();
-        });
-    });
     list.querySelectorAll('[data-sgp-menu]').forEach(element => {
         element.addEventListener('click', event => {
             event.stopPropagation();
@@ -781,7 +813,144 @@ function bindListEvents(list, { dragEnabled, searching }) {
         });
     });
 
+    bindLibraryEvents(list, { searching });
     bindDragAndDrop(list, { dragEnabled });
+}
+
+function bindLibraryEvents(list, { searching }) {
+    list.querySelector('[data-sgp-library-toggle]')?.addEventListener('click', () => {
+        if (searching) return;
+        setLibraryCollapsed(readLibrary().collapsed === false);
+        rerender();
+    });
+    list.querySelectorAll('[data-sgp-library-collapse]').forEach(button => {
+        button.addEventListener('click', () => {
+            if (searching) return;
+            const groupId = button.dataset.sgpLibraryCollapse;
+            const group = readLibrary().groups.find(item => item.id === groupId);
+            setLibraryGroupCollapsed(groupId, group?.collapsed === false);
+            rerender();
+        });
+    });
+    list.querySelector('[data-sgp-library-add-group]')?.addEventListener('click', async () => {
+        const name = normalizeName(await promptText('新建库分组', '请输入分组名称：', ''));
+        if (!name) return;
+        if (readLibrary().groups.some(group => familyKey(group.name) === familyKey(name))) {
+            toast('全局库里已有同名分组', 'warning');
+            return;
+        }
+        createLibraryGroup(name);
+        rerender();
+    });
+    list.querySelector('[data-sgp-library-export]')?.addEventListener('click', exportLibrary);
+    const fileInput = list.querySelector('[data-sgp-library-import-file]');
+    list.querySelector('[data-sgp-library-import]')?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        fileInput.value = '';
+        if (!file) return;
+        await importLibrary(file);
+        rerender();
+    });
+
+    list.querySelectorAll('[data-sgp-library-insert]').forEach(button => {
+        button.addEventListener('click', async () => {
+            const itemId = button.dataset.sgpLibraryInsert;
+            const target = await chooseInsertGroup();
+            if (!target) return;
+            const inserted = insertLibraryItems([itemId], target);
+            if (inserted) toast(`已插入 ${inserted} 个条目到当前预设`, 'success');
+            else toast('插入失败，请稍后再试', 'error');
+            rerender();
+        });
+    });
+    list.querySelectorAll('[data-sgp-library-edit]').forEach(button => {
+        button.addEventListener('click', async () => {
+            const itemId = button.dataset.sgpLibraryEdit;
+            const item = readLibrary().items.find(entry => entry.id === itemId);
+            if (!item) return;
+            const result = await editLibraryItemDialog({ title: '编辑全局库条目', name: item.name, content: item.content });
+            if (!result) return;
+            commitLibrary(library => {
+                const target = library.items.find(entry => entry.id === itemId);
+                if (!target) return false;
+                target.name = result.name;
+                target.content = result.content;
+                return true;
+            });
+            toast('全局库条目已更新', 'success');
+            rerender();
+        });
+    });
+    list.querySelectorAll('[data-sgp-library-delete]').forEach(button => {
+        button.addEventListener('click', async () => {
+            const itemId = button.dataset.sgpLibraryDelete;
+            const item = readLibrary().items.find(entry => entry.id === itemId);
+            if (!item || !await confirmAction('删除全局库条目', `从全局库删除“${item.name}”？已经插入到预设里的条目不会受影响。`)) return;
+            deleteLibraryItem(itemId);
+            rerender();
+        });
+    });
+    list.querySelectorAll('[data-sgp-library-group-rename]').forEach(button => {
+        button.addEventListener('click', async () => {
+            const groupId = button.dataset.sgpLibraryGroupRename;
+            const group = readLibrary().groups.find(item => item.id === groupId);
+            if (!group) return;
+            const name = normalizeName(await promptText('重命名库分组', '请输入新的分组名称：', group.name));
+            if (!name || name === group.name) return;
+            renameLibraryGroup(groupId, name);
+            rerender();
+        });
+    });
+    list.querySelectorAll('[data-sgp-library-group-delete]').forEach(button => {
+        button.addEventListener('click', async () => {
+            const groupId = button.dataset.sgpLibraryGroupDelete;
+            const group = readLibrary().groups.find(item => item.id === groupId);
+            if (!group || !await confirmAction('删除库分组', `删除“${group.name}”？组内条目会回到未分组，不会被删除。`)) return;
+            deleteLibraryGroup(groupId);
+            rerender();
+        });
+    });
+
+    // Dragging a library row onto a folder header or list moves it there.
+    let draggingLibraryItem = '';
+    list.querySelectorAll('[data-sgp-library-item]').forEach(row => {
+        row.draggable = true;
+        row.addEventListener('dragstart', event => {
+            event.stopPropagation();
+            draggingLibraryItem = row.dataset.sgpLibraryItem || '';
+            row.classList.add('sgp-dragging');
+            try {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', draggingLibraryItem);
+            } catch {
+                // Same-panel drags only need the state above.
+            }
+        });
+        row.addEventListener('dragend', () => {
+            draggingLibraryItem = '';
+            list.querySelectorAll('.sgp-dragging, .sgp-drag-over').forEach(element => element.classList.remove('sgp-dragging', 'sgp-drag-over'));
+        });
+    });
+    list.querySelectorAll('[data-sgp-library-drop]').forEach(target => {
+        target.addEventListener('dragover', event => {
+            if (!draggingLibraryItem) return;
+            event.preventDefault();
+            event.stopPropagation();
+            target.classList.add('sgp-drag-over');
+        });
+        target.addEventListener('dragleave', event => {
+            if (!target.contains(event.relatedTarget)) target.classList.remove('sgp-drag-over');
+        });
+        target.addEventListener('drop', event => {
+            if (!draggingLibraryItem) return;
+            event.preventDefault();
+            event.stopPropagation();
+            moveLibraryItem(draggingLibraryItem, target.dataset.sgpLibraryDrop || '');
+            draggingLibraryItem = '';
+            rerender();
+        });
+    });
 }
 
 function bindDragAndDrop(list, { dragEnabled }) {

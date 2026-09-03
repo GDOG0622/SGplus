@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { setContext } from '../shared.js';
 import { buildBlocks, normalizePromptState, readCompatibleState } from '../prompts/state.js';
+import { normalizeLibrary } from '../prompts/library.js';
 
 function withExtensions(extensions) {
     setContext({ chatCompletionSettings: { preset_settings_openai: 'Default', extensions } });
@@ -11,8 +12,7 @@ function withExtensions(extensions) {
     const state = normalizePromptState(null);
     assert.deepEqual(state.groups, [], 'a missing state must normalize to an empty one');
     assert.deepEqual(state.assignments, {});
-    assert.deepEqual(state.favorites, []);
-    assert.equal(state.favoritesCollapsed, false);
+    assert.equal('favorites' in state, false, 'favourites were removed and must not come back');
 }
 
 {
@@ -24,8 +24,6 @@ function withExtensions(extensions) {
             null,
         ],
         assignments: { one: 'a', two: 'b', orphan: 'missing' },
-        favorites: ['one', 'one', '', 'two'],
-        favoritesCollapsed: true,
     });
     assert.equal(state.groups.length, 2, 'duplicate group ids must collapse into one');
     assert.equal(state.groups[0].name, '世界观', 'group names must be trimmed');
@@ -33,8 +31,6 @@ function withExtensions(extensions) {
     assert.equal(state.groups[1].name, '未命名分组', 'blank group names need a fallback');
     assert.equal(state.groups[1].enabled, false, 'an explicit muted flag must survive');
     assert.deepEqual(state.assignments, { one: 'a', two: 'b' }, 'assignments pointing at missing groups must be dropped');
-    assert.deepEqual(state.favorites, ['one', 'two'], 'favourites must be deduped and compacted');
-    assert.equal(state.favoritesCollapsed, true);
 }
 
 // ------------------------------------------------- 柏宝箱 / legacy compatibility
@@ -53,7 +49,6 @@ function withExtensions(extensions) {
                     main: { groupId: 'nope' },
                 },
             },
-            presetPromptFavorites: { version: 1, promptIds: ['main', 'chatHistory'], collapsed: true },
         },
     });
     const state = readCompatibleState();
@@ -63,8 +58,6 @@ function withExtensions(extensions) {
     assert.equal(state.groups[0].enabled, false, 'a muted 柏宝箱 group must stay muted');
     assert.equal(state.groups[1].collapsed, true, 'missing collapsed flags default to collapsed');
     assert.deepEqual(state.assignments, { charDescription: 'g1', charPersonality: 'g1' }, 'assignments to unknown groups must be ignored');
-    assert.deepEqual(state.favorites, ['main', 'chatHistory']);
-    assert.equal(state.favoritesCollapsed, true);
 }
 
 {
@@ -132,5 +125,38 @@ function withExtensions(extensions) {
     assert.deepEqual(blocks.flatMap(block => block.members.map(entry => entry.identifier)), ['a', 'c', 'e', 'b', 'd']);
 }
 
+// -------------------------------------------------------------- global library
+{
+    const library = normalizeLibrary(null);
+    assert.deepEqual(library.items, [], 'a missing library must normalize to an empty one');
+    assert.deepEqual(library.groups, []);
+    assert.equal(library.collapsed, true, 'the shelf must start collapsed');
+}
+
+{
+    // The earliest payloads were a bare array of snippets.
+    const library = normalizeLibrary([{ id: 'a', name: '片段', content: '正文' }]);
+    assert.equal(library.items.length, 1, 'a bare array of items must still import');
+    assert.equal(library.items[0].groupId, null);
+}
+
+{
+    const library = normalizeLibrary({
+        groups: [{ id: 'g1', name: '常用' }, { id: 'g1', name: '重复应丢弃' }],
+        items: [
+            { id: 'i1', name: '  开场  ', content: 'hello', groupId: 'g1' },
+            { id: 'i1', name: '重复 id 应重新编号', content: 'x', groupId: 'g1' },
+            { id: 'i3', name: '', content: 42, groupId: 'missing' },
+        ],
+    });
+    assert.equal(library.groups.length, 1, 'duplicate library group ids must collapse');
+    assert.equal(library.items.length, 3, 'items must be kept even when their id collides');
+    assert.notEqual(library.items[0].id, library.items[1].id, 'colliding item ids must be reassigned');
+    assert.equal(library.items[0].name, '开场', 'snippet names must be trimmed');
+    assert.equal(library.items[2].name, '未命名条目', 'a blank snippet name needs a fallback');
+    assert.equal(library.items[2].content, '42', 'non-string bodies must be coerced to text');
+    assert.equal(library.items[2].groupId, null, 'a snippet pointing at a missing folder falls back to ungrouped');
+}
+
 setContext(null);
-console.log('prompt-groups.test.mjs: prompt entry grouping model verified');
+console.log('prompt-groups.test.mjs: prompt entry grouping and library models verified');

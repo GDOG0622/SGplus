@@ -321,6 +321,19 @@ export function isPatched() {
     return state.patched;
 }
 
+/**
+ * Asks SillyTavern to write the current Chat Completion preset to disk by
+ * driving its own "update preset" button, so the save path stays identical to
+ * what the user would get by clicking it.
+ * @returns {boolean} whether the button was found
+ */
+export function requestPresetSave() {
+    const button = document.getElementById('update_oai_preset');
+    if (!button) return false;
+    button.click();
+    return true;
+}
+
 /** Invokes a native row handler with a synthetic event carrying the row element. */
 export function invokeNativeHandler(name, rowElement) {
     const manager = state.promptManager;

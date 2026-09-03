@@ -6,8 +6,10 @@ import {
     isHostConnected,
     isPatched,
     removePatches,
+    requestPresetSave,
     scheduleHostRender,
 } from './host.js';
+import { closeLibraryDialog } from './library.js';
 import {
     bindGlobalRowMenuDismissal,
     closeRowMenu,
@@ -84,6 +86,33 @@ function bindLifecycleEvents() {
     bind('CHATCOMPLETION_MODEL_CHANGED', () => invalidateStateCache());
 }
 
+/**
+ * Optionally writes the preset to disk after an entry edit is saved.
+ *
+ * SillyTavern normally keeps edited entries in the live settings until the user
+ * clicks "update preset", so this is off by default. Saving also carries the
+ * group metadata into the preset file as a side effect.
+ */
+function bindEntryEditAutoSave() {
+    let timer = 0;
+    const handleSaveClick = event => {
+        if (!settings?.promptAutoSaveOnEntryEdit || !isTakeoverEnabled()) return;
+        if (!event.target?.closest?.('#completion_prompt_manager_popup_entry_form_save')) return;
+        if (timer) clearTimeout(timer);
+        // Let SillyTavern commit the edit first, and collapse a burst of edits
+        // into a single preset write.
+        timer = window.setTimeout(() => {
+            timer = 0;
+            if (requestPresetSave()) console.debug(`[${DISPLAY_NAME}] 条目编辑已保存，已顺带更新预设`);
+        }, 600);
+    };
+    document.addEventListener('click', handleSaveClick);
+    cleanupFns.push(() => {
+        if (timer) clearTimeout(timer);
+        document.removeEventListener('click', handleSaveClick);
+    });
+}
+
 function bindFlushEvents() {
     // The metadata mirror is written on every change, so flushing here is only
     // about making sure a debounced settings save actually lands.
@@ -122,6 +151,7 @@ export async function initPrompts() {
     if (!installed) return false;
 
     bindLifecycleEvents();
+    bindEntryEditAutoSave();
     bindFlushEvents();
     cleanupFns.push(bindGlobalRowMenuDismissal());
     ready = true;
@@ -150,6 +180,7 @@ export function refreshPromptTakeover() {
 
 export function cleanupPrompts() {
     closeRowMenu();
+    closeLibraryDialog();
     if (isPatched()) removePatches();
     cleanupFns.splice(0).forEach(fn => {
         try {

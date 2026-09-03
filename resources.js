@@ -1365,6 +1365,7 @@ export function exportGroupingData() {
         exportedAt: new Date().toISOString(),
         resources: settings.resources,
         promptGroups: settings.promptGroups,
+        promptLibrary: settings.promptLibrary,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1388,6 +1389,9 @@ export async function importGroupingData(file, { onImported } = {}) {
         for (const [id, resource] of Object.entries(data.resources)) settings.resources[id] = normalizeResourceState(clone(resource));
         if (data.promptGroups && typeof data.promptGroups === 'object' && !Array.isArray(data.promptGroups)) {
             settings.promptGroups = clone(data.promptGroups);
+        }
+        if (data.promptLibrary && typeof data.promptLibrary === 'object' && !Array.isArray(data.promptLibrary)) {
+            settings.promptLibrary = clone(data.promptLibrary);
         }
         scheduleSave();
         for (const adapter of adapters.values()) adapter.onItemsChanged();

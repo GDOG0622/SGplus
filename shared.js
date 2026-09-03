@@ -22,8 +22,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
     resources: {},
     enhancePromptEntries: true,
     promptDragLocked: false,
-    promptFavoritesEnabled: true,
+    promptAutoSaveOnEntryEdit: false,
     promptGroups: {},
+    promptLibrary: { version: 1, items: [], groups: [], collapsed: true },
 });
 
 /** Live bindings: importers observe these reassignments. */
@@ -122,6 +123,9 @@ export function loadSettings() {
     settings = extensionSettings[MODULE_NAME];
     if (!settings.resources || typeof settings.resources !== 'object' || Array.isArray(settings.resources)) settings.resources = {};
     if (!settings.promptGroups || typeof settings.promptGroups !== 'object' || Array.isArray(settings.promptGroups)) settings.promptGroups = {};
+    if (!settings.promptLibrary || typeof settings.promptLibrary !== 'object' || Array.isArray(settings.promptLibrary)) {
+        settings.promptLibrary = { version: 1, items: [], groups: [], collapsed: true };
+    }
     settings.schemaVersion = 3;
     settings.minGroupSize = Math.max(2, Math.min(12, Number(settings.minGroupSize) || 2));
     return settings;
