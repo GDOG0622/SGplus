@@ -1,6 +1,6 @@
 export const MODULE_NAME = 'smart_resource_groups';
 export const DISPLAY_NAME = 'SGplus';
-export const VERSION = '3.3.0';
+export const VERSION = '3.4.0';
 
 export const ROOT_ID = 'srg-root';
 export const POPOVER_ID = 'srg-popover';

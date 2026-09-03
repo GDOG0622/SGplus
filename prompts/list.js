@@ -12,21 +12,15 @@ import {
 import {
     destroyNativeSortable,
     getOrderEntry,
-    getOverriddenPrompts,
     getPrefix,
     getPromptById,
     getPromptManager,
     getPromptOrder,
     getScrollContainer,
-    getTokenBudget,
     getTokenCounts,
-    getTokenUsage,
-    INJECTION_POSITION,
     invokeNativeHandler,
-    isDeletionAllowed,
-    isEditAllowed,
-    isInspectionAllowed,
     isToggleAllowed,
+    renderNativeList,
     saveHostServiceSettings,
     scheduleHostRender,
 } from './host.js';
@@ -94,159 +88,119 @@ function matchesSearch(identifier) {
     return promptLabel(identifier).toLocaleLowerCase().includes(query);
 }
 
-function tokenLabel(counts, identifier) {
-    const value = counts[identifier];
-    return value ? String(value) : '-';
-}
-
-function roleIconFor(prompt) {
-    const lookup = prompt.role === 'system' && (prompt.marker || prompt.system_prompt) ? '' : prompt.role;
-    if (lookup === 'assistant') return { icon: 'fa-robot', title: 'Prompt will be sent as Assistant' };
-    if (lookup === 'user') return { icon: 'fa-user', title: 'Prompt will be sent as User' };
-    return null;
-}
-
-/**
- * Rebuilds SillyTavern's own row markup so host styling and other extensions
- * keep working.
- *
- * The row is always a direct `<li>`: the HTML parser auto-closes an open `<li>`
- * when it meets another one, so a loose row carries its own block id rather
- * than living inside a wrapper element.
- */
-function renderRow(entry, { dragEnabled = true, counts, prefix, state, blockId = '' } = {}) {
-    const identifier = entry.identifier;
-    const prompt = getPromptById(identifier);
-    if (!prompt) return '';
-    const enabled = entry.enabled !== false;
-    const groupId = state.assignments[identifier] || '';
-    const group = groupId ? findGroup(state, groupId) : null;
-    const muted = group?.enabled === false;
-    const selected = view.selection.has(identifier);
-    const name = escapeHtml(prompt.name ?? identifier);
-
-    const isMarker = prompt.marker && prompt.injection_position !== INJECTION_POSITION.ABSOLUTE;
-    const isSystem = !prompt.marker && prompt.system_prompt && prompt.injection_position !== INJECTION_POSITION.ABSOLUTE && !prompt.forbid_overrides;
-    const isImportant = !prompt.marker && prompt.system_prompt && prompt.injection_position !== INJECTION_POSITION.ABSOLUTE && prompt.forbid_overrides;
-    const isUser = !prompt.marker && !prompt.system_prompt && prompt.injection_position !== INJECTION_POSITION.ABSOLUTE;
-    const isInjection = prompt.injection_position === INJECTION_POSITION.ABSOLUTE;
-    const isOverridden = getOverriddenPrompts().includes(identifier);
-    const role = roleIconFor(prompt);
-
-    const classes = [
-        `${prefix}prompt_manager_prompt`,
-        `${prefix}prompt_manager_prompt_draggable`,
-        'sgp-row',
-        enabled ? '' : `${prefix}prompt_manager_prompt_disabled`,
-        prompt.marker ? `${prefix}prompt_manager_marker` : '',
-        isImportant ? `${prefix}prompt_manager_important` : '',
-        muted ? 'sgp-row-muted' : '',
-        selected ? 'sgp-row-selected' : '',
-        blockId ? 'sgp-loose-row' : '',
-    ].filter(Boolean).join(' ');
-
-    const tokens = tokenLabel(counts, identifier);
-    const budget = getTokenBudget();
-    let warningClass = '';
-    let warningTitle = '';
-    if (identifier === 'chatHistory' && budget > 0 && getTokenUsage() > budget * 0.8) {
-        const numeric = Number(counts[identifier]) || 0;
-        const configuration = getPromptManager()?.configuration || {};
-        if (numeric <= Number(configuration.dangerTokenThreshold)) {
-            warningClass = 'fa-solid tooltip fa-triangle-exclamation text_danger';
-            warningTitle = '发送的聊天记录非常少，考虑关闭一些其他条目。';
-        } else if (numeric <= Number(configuration.warningTokenThreshold)) {
-            warningClass = 'fa-solid tooltip fa-triangle-exclamation text_warning';
-            warningTitle = '只有少量聊天记录被发送。';
-        }
-    }
-
-    const nameBody = isInspectionAllowed(prompt)
-        ? `<a title="${name}" class="prompt-manager-inspect-action">${name}</a>`
-        : `<span title="${name}">${name}</span>`;
-
-    const leading = view.selecting
-        ? `<input type="checkbox" class="sgp-check" data-sgp-select-row="${escapeHtml(identifier)}" ${selected ? 'checked' : ''} aria-label="选择 ${name}">`
-        : (dragEnabled ? '<span class="drag-handle ui-sortable-handle" data-sgp-row-handle>☰</span>' : '');
-
-    const actionButton = (action, icon, title, extra = '') => `<span class="menu_button sgp-prompt-action ${extra}" data-sgp-row-action="${action}" data-sgp-row-id="${escapeHtml(identifier)}" title="${title}"><i class="fa-solid ${icon}"></i></span>`;
-    const menuButton = `<span class="menu_button sgp-prompt-icon-button sgp-more" data-sgp-menu="${escapeHtml(identifier)}" title="更多操作" aria-expanded="false"><i class="fa-solid fa-ellipsis"></i></span>`;
-    const menuActions = `
-        <span class="sgp-prompt-actions" aria-hidden="true">
-            ${actionButton('move', 'fa-folder-tree', '移动到分组')}
-            ${actionButton('library', 'fa-database', '添加到全局库')}
-            ${actionButton('up', 'fa-arrow-up', '上移条目')}
-            ${actionButton('down', 'fa-arrow-down', '下移条目')}
-            ${actionButton('copy', 'fa-copy', '复制条目')}
-            ${isDeletionAllowed(prompt) ? actionButton('detach', 'fa-trash', '从预设移除', 'danger') : ''}
-        </span>`;
-    const editButton = isEditAllowed(prompt)
-        ? actionButton('edit', 'fa-pencil', '编辑条目')
-        : '';
-    const toggleButton = isToggleAllowed(prompt)
-        ? `<span class="menu_button sgp-prompt-icon-button prompt-manager-toggle-action ${enabled ? 'fa-solid fa-toggle-on' : 'fa-solid fa-toggle-off'}" data-sgp-toggle="${escapeHtml(identifier)}" title="${enabled ? '停用此条目' : '启用此条目'}"></span>`
-        : '<span class="fa-solid"></span>';
+/** Builds one flat group-header row; member prompts remain native sibling rows. */
+function renderGroupHeader(block, { index, total, dragEnabled, searching }) {
+    const group = block.group;
+    const collapsed = searching ? false : group.collapsed !== false;
+    const enabledCount = block.members.filter(entry => entry.enabled !== false).length;
+    const muted = group.enabled === false;
 
     return `
-        <li class="${classes}" data-pm-identifier="${escapeHtml(identifier)}" ${blockId ? `data-sgp-block="${escapeHtml(blockId)}"` : ''} draggable="${dragEnabled && !view.selecting ? 'true' : 'false'}">
-            ${leading}
-            <span class="${prefix}prompt_manager_prompt_name" data-pm-name="${name}">
-                ${isMarker ? '<span class="fa-fw fa-solid fa-thumb-tack" title="Marker"></span>' : ''}
-                ${isSystem ? '<span class="fa-fw fa-solid fa-square-poll-horizontal" title="Global Prompt"></span>' : ''}
-                ${isImportant ? '<span class="fa-fw fa-solid fa-star" title="Important Prompt"></span>' : ''}
-                ${isUser ? '<span class="fa-fw fa-solid fa-asterisk" title="Preset Prompt"></span>' : ''}
-                ${isInjection ? '<span class="fa-fw fa-solid fa-syringe" title="In-Chat Injection"></span>' : ''}
-                ${nameBody}
-                ${role ? `<span data-role="${escapeHtml(prompt.role)}" class="fa-xs fa-solid ${role.icon}" title="${role.title}"></span>` : ''}
-                ${isInjection ? `<small class="prompt-manager-injection-depth">@ ${escapeHtml(String(prompt.injection_depth ?? 0))}</small>` : ''}
-                ${isOverridden ? '<small class="fa-solid fa-address-card prompt-manager-overridden" title="Pulled from a character card"></small>' : ''}
-                ${muted ? '<small class="sgp-muted-badge" title="所属分组已静音，本条目不会参与生成">静音</small>' : ''}
+        <li class="sgp-block pgm-group sgp-group sgp-group-head ${collapsed ? 'collapsed' : ''} ${muted ? 'sgp-group-muted' : ''}" data-sgp-group="${escapeHtml(group.id)}" data-sgp-block="${escapeHtml(group.id)}">
+            <span class="pgm-drag sgp-block-drag" draggable="${dragEnabled ? 'true' : 'false'}" data-sgp-drag-block="${escapeHtml(group.id)}" title="拖动分组排序">⠿</span>
+            <button type="button" class="pgm-group-toggle sgp-group-toggle" data-sgp-collapse="${escapeHtml(group.id)}" aria-expanded="${collapsed ? 'false' : 'true'}">
+                <span class="pgm-chevron">▾</span><strong class="pgm-group-name">${escapeHtml(group.name)}</strong><span class="pgm-count">${enabledCount}/${block.members.length}</span>
+            </button>
+            <span class="pgm-group-actions sgp-group-actions">
+                <span class="sgp-group-inline-actions" aria-hidden="true">
+                    <button type="button" class="pgm-row-btn sgp-power ${muted ? 'muted' : ''}" data-sgp-group-action="power" title="${muted ? '恢复整组参与生成' : '整组静音'}"><i class="fa-solid ${muted ? 'fa-volume-xmark' : 'fa-volume-high'}"></i></button>
+                    <button type="button" class="pgm-row-btn" data-sgp-group-action="up" ${index <= 0 ? 'disabled' : ''} title="上移分组"><i class="fa-solid fa-arrow-up"></i></button>
+                    <button type="button" class="pgm-row-btn" data-sgp-group-action="down" ${index >= total - 1 ? 'disabled' : ''} title="下移分组"><i class="fa-solid fa-arrow-down"></i></button>
+                    <button type="button" class="pgm-row-btn" data-sgp-group-action="rename" title="重命名分组"><i class="fa-solid fa-pencil"></i></button>
+                    <button type="button" class="pgm-row-btn danger" data-sgp-group-action="delete" title="删除分组"><i class="fa-solid fa-xmark"></i></button>
+                </span>
+                <button type="button" class="pgm-row-btn sgp-group-more" data-sgp-group-menu="${escapeHtml(group.id)}" title="更多分组操作" aria-label="更多分组操作" aria-expanded="false"><i class="fa-solid fa-ellipsis"></i></button>
             </span>
-            <span class="sgp-controls-cell">
-                <span class="prompt_manager_prompt_controls">${menuActions}${menuButton}${editButton}${toggleButton}</span>
-            </span>
-            <span class="prompt_manager_prompt_tokens" data-pm-tokens="${escapeHtml(tokens)}"><span class="${warningClass}" title="${escapeHtml(warningTitle)}"> </span>${escapeHtml(tokens)}</span>
         </li>
     `;
 }
 
-function renderRows(entries, options) {
-    return entries.map(entry => renderRow(entry, options)).join('');
+function createNodes(html) {
+    const template = document.createElement('template');
+    template.innerHTML = html.trim();
+    return [...template.content.childNodes];
 }
 
-function renderGroupBlock(block, { index, total, counts, prefix, state, dragEnabled, searching }) {
-    const group = block.group;
-    const visible = block.members.filter(entry => matchesSearch(entry.identifier));
-    if (searching && !visible.length && !group.name.toLocaleLowerCase().includes(view.search.toLocaleLowerCase())) return '';
-    const collapsed = searching ? false : group.collapsed !== false;
-    const enabledCount = block.members.filter(entry => entry.enabled !== false).length;
-    const muted = group.enabled === false;
-    const body = collapsed
-        ? ''
-        : (renderRows(visible, { counts, prefix, state, dragEnabled })
-            || '<li class="pgm-empty sgp-empty">把条目拖到这里，或用条目菜单里的“移动到分组”</li>');
+/**
+ * Adds SGplus controls to the exact `<li>` created by SillyTavern. Native
+ * edit/toggle/detach nodes are retained, so their event handlers and any
+ * custom CSS that targets the host row continue to work.
+ */
+function decorateNativeRow(row, entry, { dragEnabled, state, collapsed = false, blockId = '' }) {
+    const identifier = entry.identifier;
+    const prompt = getPromptById(identifier);
+    if (!prompt) return null;
+    const groupId = state.assignments[identifier] || '';
+    const group = groupId ? findGroup(state, groupId) : null;
+    const muted = group?.enabled === false;
 
-    return `
-        <div class="sgp-block pgm-group sgp-group ${collapsed ? 'collapsed' : ''} ${muted ? 'sgp-group-muted' : ''}" data-sgp-group="${escapeHtml(group.id)}" data-sgp-block="${escapeHtml(group.id)}">
-            <div class="pgm-group-head sgp-group-head">
-                <span class="pgm-drag sgp-block-drag" draggable="${dragEnabled ? 'true' : 'false'}" data-sgp-drag-block="${escapeHtml(group.id)}" title="拖动分组排序">⠿</span>
-                <button type="button" class="pgm-group-toggle sgp-group-toggle" data-sgp-collapse="${escapeHtml(group.id)}" aria-expanded="${collapsed ? 'false' : 'true'}">
-                    <span class="pgm-chevron">▾</span><strong class="pgm-group-name">${escapeHtml(group.name)}</strong><span class="pgm-count">${enabledCount}/${block.members.length}</span>
-                </button>
-                <div class="pgm-group-actions sgp-group-actions">
-                    <span class="sgp-group-inline-actions" aria-hidden="true">
-                        <button type="button" class="pgm-row-btn sgp-power ${muted ? 'muted' : ''}" data-sgp-group-action="power" title="${muted ? '恢复整组参与生成' : '整组静音'}"><i class="fa-solid ${muted ? 'fa-volume-xmark' : 'fa-volume-high'}"></i></button>
-                        <button type="button" class="pgm-row-btn" data-sgp-group-action="up" ${index <= 0 ? 'disabled' : ''} title="上移分组"><i class="fa-solid fa-arrow-up"></i></button>
-                        <button type="button" class="pgm-row-btn" data-sgp-group-action="down" ${index >= total - 1 ? 'disabled' : ''} title="下移分组"><i class="fa-solid fa-arrow-down"></i></button>
-                        <button type="button" class="pgm-row-btn" data-sgp-group-action="rename" title="重命名分组"><i class="fa-solid fa-pencil"></i></button>
-                        <button type="button" class="pgm-row-btn danger" data-sgp-group-action="delete" title="删除分组"><i class="fa-solid fa-xmark"></i></button>
-                    </span>
-                    <button type="button" class="pgm-row-btn sgp-group-more" data-sgp-group-menu="${escapeHtml(group.id)}" data-sgp-group-index="${index}" data-sgp-group-total="${total}" title="更多分组操作" aria-label="更多分组操作" aria-expanded="false"><i class="fa-solid fa-ellipsis"></i></button>
-                </div>
-            </div>
-            <div class="pgm-group-body sgp-group-body">${body}</div>
-        </div>
-    `;
+    row.classList.add('sgp-row');
+    row.classList.toggle('sgp-row-muted', muted);
+    row.classList.toggle('sgp-row-selected', view.selection.has(identifier));
+    row.classList.toggle('sgp-loose-row', !groupId);
+    row.classList.toggle('sgp-group-member-collapsed', collapsed);
+    row.dataset.sgpGroupMember = groupId;
+    row.dataset.sgpBlock = blockId || groupId || identifier;
+    row.draggable = Boolean(dragEnabled && !view.selecting);
+
+    const nameCell = row.querySelector(`.${getPrefix()}prompt_manager_prompt_name`);
+    if (muted && nameCell) {
+        const badge = document.createElement('small');
+        badge.className = 'sgp-muted-badge';
+        badge.title = '所属分组已静音，本条目不会参与生成';
+        badge.textContent = '静音';
+        nameCell.appendChild(badge);
+    }
+
+    const handle = row.querySelector('.drag-handle');
+    if (handle) {
+        handle.hidden = view.selecting;
+        handle.classList.toggle('ui-sortable-handle', Boolean(dragEnabled && !view.selecting));
+        handle.toggleAttribute('data-sgp-row-handle', Boolean(dragEnabled && !view.selecting));
+    }
+    if (view.selecting && nameCell) {
+        const check = document.createElement('input');
+        check.type = 'checkbox';
+        check.className = 'sgp-check';
+        check.dataset.sgpSelectRow = identifier;
+        check.checked = view.selection.has(identifier);
+        check.setAttribute('aria-label', `选择 ${prompt.name ?? identifier}`);
+        nameCell.before(check);
+    }
+
+    const controls = row.querySelector('.prompt_manager_prompt_controls');
+    if (!controls) return row;
+    controls.parentElement?.classList.add('sgp-controls-cell');
+    for (const child of [...controls.children]) {
+        if (child.classList.length === 1 && child.classList.contains('fa-solid')) child.remove();
+    }
+
+    const nativeDetach = controls.querySelector('.prompt-manager-detach-action');
+    const actionButton = (action, icon, title) => `<span class="menu_button sgp-prompt-action" data-sgp-row-action="${action}" data-sgp-row-id="${escapeHtml(identifier)}" title="${title}"><i class="fa-solid ${icon}"></i></span>`;
+    const actions = document.createElement('span');
+    actions.className = 'sgp-prompt-actions';
+    actions.setAttribute('aria-hidden', 'true');
+    actions.innerHTML = [
+        actionButton('move', 'fa-folder-tree', '移动到分组'),
+        actionButton('library', 'fa-database', '添加到全局库'),
+        actionButton('up', 'fa-arrow-up', '上移条目'),
+        actionButton('down', 'fa-arrow-down', '下移条目'),
+        actionButton('copy', 'fa-copy', '复制条目'),
+    ].join('');
+    if (nativeDetach) {
+        nativeDetach.classList.add('sgp-prompt-action', 'danger');
+        nativeDetach.title = '从预设移除';
+        actions.appendChild(nativeDetach);
+    }
+
+    const more = document.createElement('span');
+    more.className = 'menu_button sgp-prompt-icon-button sgp-more';
+    more.dataset.sgpMenu = identifier;
+    more.title = '更多操作';
+    more.setAttribute('aria-expanded', 'false');
+    more.innerHTML = '<i class="fa-solid fa-ellipsis"></i>';
+    controls.prepend(actions, more);
+    return row;
 }
 
 /**
@@ -371,21 +325,6 @@ function syncLibraryHost(list) {
     return host;
 }
 
-function applyPromptRowHostLayout(list) {
-    const row = list.querySelector('li.sgp-row');
-    let hasInFlowHandleColumn = false;
-    if (row instanceof HTMLElement) {
-        try {
-            hasInFlowHandleColumn = getComputedStyle(row)
-                .getPropertyValue('--completion-prompt-manager-handle-column')
-                .trim() !== '';
-        } catch {
-            // A host without computed-style access uses SillyTavern's native shape.
-        }
-    }
-    list.classList.toggle('sgp-inflow-handle-host', hasInFlowHandleColumn);
-}
-
 export function removeLibraryHost() {
     document.getElementById(LIBRARY_HOST_ID)?.remove();
 }
@@ -397,7 +336,6 @@ export async function renderGroupedList() {
     const manager = getPromptManager();
     const list = manager?.listElement;
     if (!list) return;
-    const prefix = getPrefix();
     const state = readState();
     const counts = getTokenCounts();
     const searching = Boolean(normalizeName(view.search));
@@ -406,27 +344,51 @@ export async function renderGroupedList() {
 
     const scroller = getScrollContainer();
     const previousScrollTop = scroller?.scrollTop ?? 0;
-    const sections = [];
+    await renderNativeList();
+
+    const nativeRows = new Map(
+        [...list.querySelectorAll('li[data-pm-identifier]')]
+            .map(row => [row.dataset.pmIdentifier, row]),
+    );
+    const fragment = document.createDocumentFragment();
+    for (const node of createNodes(renderListHeader(state, counts))) fragment.appendChild(node);
+
     for (let index = 0; index < blocks.length; index++) {
         const block = blocks[index];
         if (block.type === 'group') {
-            sections.push(renderGroupBlock(block, { index, total: blocks.length, counts, prefix, state, dragEnabled, searching }));
+            const visible = block.members.filter(entry => matchesSearch(entry.identifier));
+            if (searching && !visible.length && !block.group.name.toLocaleLowerCase().includes(view.search.toLocaleLowerCase())) continue;
+            for (const node of createNodes(renderGroupHeader(block, { index, total: blocks.length, dragEnabled, searching }))) {
+                fragment.appendChild(node);
+            }
+            const collapsed = !searching && block.group.collapsed !== false;
+            for (const entry of visible) {
+                const row = nativeRows.get(entry.identifier);
+                const decorated = row && decorateNativeRow(row, entry, {
+                    dragEnabled,
+                    state,
+                    collapsed,
+                    blockId: block.group.id,
+                });
+                if (decorated) fragment.appendChild(decorated);
+            }
             continue;
         }
         const entry = block.members[0];
         if (!entry || !matchesSearch(entry.identifier)) continue;
-        sections.push(renderRow(entry, { counts, prefix, state, dragEnabled, blockId: block.id }));
+        const row = nativeRows.get(entry.identifier);
+        const decorated = row && decorateNativeRow(row, entry, { dragEnabled, state, blockId: block.id });
+        if (decorated) fragment.appendChild(decorated);
     }
 
-    list.innerHTML = `
-        ${renderListHeader(state, counts)}
-        ${sections.join('') || '<li class="pgm-empty sgp-empty sgp-empty-large">没有匹配的条目</li>'}
-    `;
+    if (!fragment.querySelector?.('li[data-pm-identifier], li.sgp-group')) {
+        for (const node of createNodes('<li class="pgm-empty sgp-empty sgp-empty-large">没有匹配的条目</li>')) fragment.appendChild(node);
+    }
+    list.replaceChildren(fragment);
 
     syncLibraryHost(list);
     destroyNativeSortable();
     bindListEvents(list, { dragEnabled, searching });
-    applyPromptRowHostLayout(list);
     if (scroller && previousScrollTop) {
         scroller.scrollTop = Math.min(previousScrollTop, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
     }
@@ -841,13 +803,6 @@ function bindListEvents(list, { dragEnabled, searching }) {
             void runRowAction(list, element.dataset.sgpRowId, element.dataset.sgpRowAction, element);
         });
     });
-    list.querySelectorAll('.prompt-manager-inspect-action').forEach(element => {
-        element.addEventListener('click', event => {
-            event.stopPropagation();
-            invokeNativeHandler('handleInspect', element);
-        });
-    });
-
     bindDragAndDrop(list, { dragEnabled });
 }
 

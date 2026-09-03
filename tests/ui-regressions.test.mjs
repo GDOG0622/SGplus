@@ -109,10 +109,15 @@ assert.match(blocksSource, /if \(next\.length !== items\.length\) return false;/
 assert.match(blocksSource, /export function buildBlocks\(\{ items, idOf, assignments, groups \}\)/, 'preset entries and regex scripts must share one block model');
 
 // -------------------------------------------------------------- list behaviours
-assert.doesNotMatch(listSource, /<li class="sgp-block sgp-loose-block"[^>]*>\$\{renderRow/, 'a loose row must not be wrapped in another <li>, which the HTML parser would flatten');
-assert.match(listSource, /blockId \? `data-sgp-block="\$\{escapeHtml\(blockId\)\}"` : ''/, 'a loose row must carry its own block id');
-assert.match(listSource, /<div class="sgp-block pgm-group sgp-group/, 'group chrome must use a neutral div so mobile themes that restyle prompt li elements cannot corrupt it');
-assert.doesNotMatch(listSource, /<li class="sgp-block pgm-group sgp-group/, 'group chrome must not masquerade as a native prompt row');
+assert.match(listSource, /await renderNativeList\(\);/, 'the host must render and bind its native prompt rows before SGplus groups them');
+assert.match(listSource, /list\.querySelectorAll\('li\[data-pm-identifier\]'\)/, 'grouping must start from native prompt li nodes');
+assert.match(listSource, /function decorateNativeRow\(row, entry,/, 'SGplus must decorate native rows instead of recreating them');
+assert.match(listSource, /row\.dataset\.sgpBlock = blockId \|\| groupId \|\| identifier;/, 'every native row must carry its flat block identity');
+assert.match(listSource, /<li class="sgp-block pgm-group sgp-group sgp-group-head/, 'each group header must be a flat list item alongside native prompt rows');
+assert.match(listSource, /fragment\.appendChild\(decorated\);/, 'prompt rows must be appended directly to the same list fragment as group headers');
+assert.match(listSource, /list\.replaceChildren\(fragment\);/, 'the flat fragment must atomically replace the host list');
+assert.doesNotMatch(listSource, /sgp-group-body/, 'group rows must never be nested inside a wrapper body');
+assert.match(listSource, /row\.classList\.toggle\('sgp-group-member-collapsed', collapsed\);/, 'collapse must hide flat member rows without deleting them');
 assert.match(styleSource, /@media \(max-width: 700px\)[\s\S]*?\.sgp-group-head \{[\s\S]*?writing-mode:\s*horizontal-tb;/, 'mobile group headers must resist vertical-writing custom themes');
 assert.match(listSource, /function syncBatchBar\(list\)/, 'batch controls must react to checkbox changes');
 assert.match(listSource, /control\.disabled = !hasSelection;/, 'batch buttons must become usable as soon as something is selected');
@@ -125,15 +130,17 @@ assert.match(listSource, /const group = findGroup\(readState\(\), groupId\);\s*s
 assert.doesNotMatch(listSource, /data-sgp-favorite/, 'favourites were removed and must not come back');
 assert.doesNotMatch(listSource, /sgp-star/, 'the star column must not reappear in the row');
 assert.doesNotMatch(listSource, /data-sgp-mirror/, 'the favourites mirror rows must be gone');
-assert.match(listSource, /prompt_manager_prompt_controls">\$\{menuActions\}\$\{menuButton\}\$\{editButton\}\$\{toggleButton\}/, 'row controls must follow the compact actions, ellipsis, edit, toggle order');
+assert.match(listSource, /controls\.prepend\(actions, more\);/, 'secondary controls must be prepended without replacing native edit and toggle controls');
+assert.match(listSource, /const nativeDetach = controls\.querySelector\('\.prompt-manager-detach-action'\);/, 'the host detach control and its listener must be retained');
+assert.match(listSource, /actions\.appendChild\(nativeDetach\);/, 'native detach must move into the compact disclosure without being recreated');
 assert.match(listSource, /data-sgp-row-action="\$\{action\}"/, 'secondary row actions must use the inline ellipsis disclosure');
 assert.match(listSource, /actionButton\('copy'/, 'copying must live inside the ellipsis disclosure');
-assert.match(listSource, /actionButton\('detach'/, 'removing must live inside the ellipsis disclosure');
 assert.match(listSource, /actionButton\('library'/, 'saving to the library must live inside the ellipsis disclosure');
 assert.match(listSource, /data-sgp-menu-move/, 'moving to a group must live inside the ellipsis menu');
 assert.match(listSource, /data-sgp-group-menu=/, 'group headers must expose one ellipsis menu instead of five loose actions');
 assert.match(listSource, /data-sgp-group-action="power"[\s\S]*?data-sgp-group-action="up"[\s\S]*?data-sgp-group-action="down"[\s\S]*?data-sgp-group-action="rename"[\s\S]*?data-sgp-group-action="delete"/, 'the group ellipsis must contain power, move, rename and delete actions');
-assert.match(styleSource, /li\.sgp-row \{\s*grid-template-columns:\s*minmax\(0, 1fr\) max-content max-content !important;\s*column-gap:\s*6px !important;/, 'prompt controls and tokens must use content-sized columns without the old fixed token gap');
+assert.doesNotMatch(styleSource, /li\.sgp-row\s*\{[^}]*grid-template-columns:/, 'SGplus must not override the native/custom-theme prompt row columns');
+assert.doesNotMatch(styleSource, /li\.sgp-row\s*>\s*\.prompt_manager_prompt_tokens\s*\{[^}]*inline-size:/, 'SGplus must not impose its own token column width');
 assert.match(styleSource, /\.sgp-group-head \{[\s\S]*?grid-template-columns:\s*max-content minmax\(0, 1fr\) max-content !important;/, 'group headers need separate drag, title and actions columns so ellipsis cannot wrap below the title');
 assert.match(styleSource, /\.sgp-group-head > \.sgp-group-actions \{\s*grid-column:\s*3 !important;\s*grid-row:\s*1 !important;/, 'group actions must be pinned to the first row under custom themes');
 assert.match(styleSource, /\.sgp-row-actions-open \.sgp-prompt-actions[\s\S]*?display:\s*inline-flex !important;/, 'row actions must expand inline rather than in a detached popover');
@@ -141,9 +148,9 @@ assert.match(styleSource, /min-width:\s*max-content !important;/, 'host span wid
 
 assert.match(listSource, /export function isTakeoverEnabled\(\)/, 'the takeover must be switchable');
 assert.match(listSource, /settings\?\.enabled && settings\?\.enhancePromptEntries/, 'the master switch must also disable the prompt entry takeover');
-assert.match(listSource, /class="drag-handle ui-sortable-handle"/, 'the drag handle must keep the class SillyTavern uses to reveal it');
+assert.match(listSource, /handle\.classList\.toggle\('ui-sortable-handle'/, 'the native drag handle must keep the class SillyTavern uses to reveal it');
 assert.match(listSource, /skipped \? `，\$\{skipped\} 个不支持开关已跳过` : ''/, 'batch toggling must report entries SillyTavern refuses to switch');
-assert.match(listSource, /prefix\}prompt_manager_prompt/, 'rows must keep SillyTavern class names so host styling and other extensions still apply');
+assert.match(listSource, /the exact `<li>` created by SillyTavern/, 'rows must remain SillyTavern-owned nodes so host styling and listeners still apply');
 assert.match(listSource, /getScrollContainer\(\)/, 'rerendering must preserve the host scroll position');
 assert.doesNotMatch(listSource, /innerHTML\s*=\s*[^`]*\$\{prompt\.name\}/, 'prompt names must never be interpolated unescaped');
 
