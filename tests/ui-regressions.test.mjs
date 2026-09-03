@@ -16,6 +16,7 @@ const regexListSource = read('regex/list.js');
 const regexIndexSource = read('regex/index.js');
 const librarySource = read('prompts/library.js');
 const promptsIndexSource = read('prompts/index.js');
+const presetCollapseSource = read('preset-collapse.js');
 const styleSource = read('style.css');
 const manifest = JSON.parse(read('manifest.json'));
 const packageJson = JSON.parse(read('package.json'));
@@ -27,7 +28,7 @@ assert.equal(sourceVersion, packageJson.version, 'shared and package versions mu
 assert.equal(manifest.js, 'index.js', 'the manifest must point at the module entry point');
 
 // ------------------------------------------- inherited resource-grouping fixes
-const openManagerSource = resourcesSource.match(/export function openManager[\s\S]*?\n}\n\nfunction closeManager/)?.[0] || '';
+const openManagerSource = resourcesSource.match(/export function openManager[\s\S]*?\r?\n}\r?\n\r?\nfunction closeManager/)?.[0] || '';
 assert.ok(openManagerSource, 'openManager source was not found');
 assert.doesNotMatch(openManagerSource, /scrollTop\s*=\s*0/, 'opening the manager must not override current-item positioning');
 
@@ -110,11 +111,14 @@ assert.match(blocksSource, /export function buildBlocks\(\{ items, idOf, assignm
 // -------------------------------------------------------------- list behaviours
 assert.doesNotMatch(listSource, /<li class="sgp-block sgp-loose-block"[^>]*>\$\{renderRow/, 'a loose row must not be wrapped in another <li>, which the HTML parser would flatten');
 assert.match(listSource, /blockId \? `data-sgp-block="\$\{escapeHtml\(blockId\)\}"` : ''/, 'a loose row must carry its own block id');
+assert.match(listSource, /<div class="sgp-block pgm-group sgp-group/, 'group chrome must use a neutral div so mobile themes that restyle prompt li elements cannot corrupt it');
+assert.doesNotMatch(listSource, /<li class="sgp-block pgm-group sgp-group/, 'group chrome must not masquerade as a native prompt row');
+assert.match(styleSource, /@media \(max-width: 700px\)[\s\S]*?\.sgp-group-head \{[\s\S]*?writing-mode:\s*horizontal-tb;/, 'mobile group headers must resist vertical-writing custom themes');
 assert.match(listSource, /function syncBatchBar\(list\)/, 'batch controls must react to checkbox changes');
 assert.match(listSource, /control\.disabled = !hasSelection;/, 'batch buttons must become usable as soon as something is selected');
 assert.match(listSource, /syncBatchBar\(list\);/, 'the checkbox handler must refresh the batch bar');
-assert.match(listSource, /if \(event\.key !== 'Escape' \|\| !document\.getElementById\(MENU_ID\)\) return;[\s\S]*?event\.stopPropagation\(\);/, 'Escape must close only the row menu, not the host drawer behind it');
-assert.match(listSource, /const shouldEnable = group\.enabled === false;\s*setGroupEnabled\(groupId, shouldEnable\);/, 'the mute toast must be decided before the live state is mutated');
+assert.match(listSource, /if \(event\.key !== 'Escape' \|\| \(!document\.getElementById\(MENU_ID\) && !document\.getElementById\(GROUP_MENU_ID\)\)\) return;[\s\S]*?event\.stopPropagation\(\);/, 'Escape must close only the active row or group menu, not the host drawer behind it');
+assert.match(listSource, /const shouldEnable = liveGroup\.enabled === false;\s*setGroupEnabled\(groupId, shouldEnable\);/, 'the mute toast must be decided before the live state is mutated');
 assert.match(listSource, /const group = findGroup\(readState\(\), groupId\);\s*setGroupCollapsed\(groupId, group\?\.collapsed === false\);/, 'collapsing must read the previous value before writing');
 // The row must stay down to a name, one menu and the native switch: every
 // secondary action belongs behind the ellipsis.
@@ -127,6 +131,10 @@ assert.match(listSource, /data-sgp-menu-action="copy"/, 'copying must live insid
 assert.match(listSource, /data-sgp-menu-action="detach"/, 'removing must live inside the ellipsis menu');
 assert.match(listSource, /data-sgp-menu-action="library"/, 'saving to the library must live inside the ellipsis menu');
 assert.match(listSource, /data-sgp-menu-move/, 'moving to a group must live inside the ellipsis menu');
+assert.match(listSource, /data-sgp-group-menu=/, 'group headers must expose one ellipsis menu instead of five loose actions');
+assert.doesNotMatch(listSource, /data-sgp-power=/, 'group power must not remain loose in the header');
+assert.match(listSource, /data-sgp-group-action="power"[\s\S]*?data-sgp-group-action="up"[\s\S]*?data-sgp-group-action="down"[\s\S]*?data-sgp-group-action="rename"[\s\S]*?data-sgp-group-action="delete"/, 'the group ellipsis must contain power, move, rename and delete actions');
+assert.match(styleSource, /li\.sgp-row \{\s*grid-template-columns:\s*minmax\(0, 1fr\) max-content max-content !important;\s*column-gap:\s*6px !important;/, 'prompt controls and tokens must use content-sized columns without the old fixed token gap');
 
 assert.match(listSource, /export function isTakeoverEnabled\(\)/, 'the takeover must be switchable');
 assert.match(listSource, /settings\?\.enabled && settings\?\.enhancePromptEntries/, 'the master switch must also disable the prompt entry takeover');
@@ -198,5 +206,10 @@ assert.match(promptsIndexSource, /#completion_prompt_manager_popup_entry_form_sa
 assert.match(hostSource, /export function requestPresetSave\(\)/, 'preset saving must go through the host button the user would click');
 assert.doesNotMatch(indexSource, /promptFavoritesEnabled/, 'the favourites setting must be gone');
 assert.match(indexSource, /data-srg-setting="promptAutoSaveOnEntryEdit"/, 'the auto-save setting must be exposed in the panel');
+assert.match(indexSource, /data-srg-setting="collapsePresetInterface"/, 'preset interface collapsing must be exposed in the settings panel');
+assert.match(presetCollapseSource, /#range_block_openai/, 'the preset sampling controls must be included in the collapsible section');
+assert.match(presetCollapseSource, /#openai_settings/, 'the OpenAI preset setting blocks must be included in the collapsible section');
+assert.match(presetCollapseSource, /te-preset-wrapper/, 'an existing layout extension collapse must win instead of creating nested drawers');
+assert.match(presetCollapseSource, /export function cleanupPresetInterfaceCollapse\(\)/, 'preset interface collapsing must be fully reversible');
 
 console.log('ui-regressions.test.mjs: inherited and SGplus regressions verified');

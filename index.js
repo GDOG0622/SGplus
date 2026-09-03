@@ -15,6 +15,7 @@ import {
     applySmartGrouping,
 } from './resources.js';
 import { cleanupPrompts, initPrompts, refreshPromptTakeover } from './prompts/index.js';
+import { applyPresetInterfaceCollapse, cleanupPresetInterfaceCollapse } from './preset-collapse.js';
 import { cleanupRegex, initRegex, refreshRegexTakeover } from './regex/index.js';
 import { readState } from './prompts/state.js';
 import {
@@ -45,7 +46,7 @@ function createSettingsPanel() {
                 <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
             </div>
             <div class="inline-drawer-content">
-                <p class="srg-settings-note">把 SillyTavern 的预设、模板、UI 主题和世界书下拉框变成可搜索、可折叠的分组列表，并给 Chat Completion 预设内部的条目加上分组、收藏与批量整理。只改变列表呈现与分组记录，不改写任何资源本体。</p>
+                <p class="srg-settings-note">把 SillyTavern 的预设、模板、UI 主题和世界书下拉框变成可搜索、可折叠的分组列表，并给 Chat Completion 预设内部的条目加上分组、全局库与批量整理。只改变列表呈现与分组记录，不改写任何资源本体。</p>
                 <div class="srg-settings-group-title">资源下拉框</div>
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="enabled"><span>启用插件</span></label>
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="enhancePresets"><span>接管全部预设 / 模板下拉框</span></label>
@@ -55,6 +56,7 @@ function createSettingsPanel() {
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="compactRows"><span>管理器使用紧凑行高</span></label>
                 <label class="srg-number-setting"><span>自动成组所需的最少条目数</span><input type="number" min="2" max="12" step="1" data-srg-setting="minGroupSize"></label>
                 <div class="srg-settings-group-title">预设条目（Chat Completion）</div>
+                <label class="checkbox_label"><input type="checkbox" data-srg-setting="collapsePresetInterface"><span>收起不常用的预设设置</span></label>
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="enhancePromptEntries"><span>接管预设条目列表（分组、收藏、批量）</span></label>
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="promptAutoSaveOnEntryEdit"><span>编辑条目后自动保存预设</span></label>
                 <label class="checkbox_label"><input type="checkbox" data-srg-setting="promptDragLocked"><span>锁定条目拖拽（避免误拖）</span></label>
@@ -85,6 +87,9 @@ function createSettingsPanel() {
             scheduleSave();
             if (key === 'enabled' || key === 'enhancePromptEntries' || key === 'promptDragLocked') {
                 refreshPromptTakeover();
+            }
+            if (key === 'enabled' || key === 'collapsePresetInterface') {
+                applyPresetInterfaceCollapse();
             }
             if (key === 'enabled' || key === 'enhanceRegex' || key === 'regexDragLocked') {
                 refreshRegexTakeover();
@@ -164,6 +169,7 @@ async function boot() {
 
     const migrated = migrateLegacyState();
     initResources();
+    applyPresetInterfaceCollapse();
     if (migrated) toast(`已迁移旧版 v1.5.5 的 ${migrated} 条手动分组记录`, 'success');
 
     if (settings.enhancePromptEntries) {
@@ -176,6 +182,7 @@ async function boot() {
 }
 
 function cleanup() {
+    cleanupPresetInterfaceCollapse();
     cleanupRegex();
     cleanupPrompts();
     cleanupResources();

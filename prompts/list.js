@@ -66,6 +66,7 @@ import {
 } from './state.js';
 
 const MENU_ID = 'sgp-row-menu';
+const GROUP_MENU_ID = 'sgp-group-menu';
 
 const view = {
     search: '',
@@ -219,22 +220,18 @@ function renderGroupBlock(block, { index, total, counts, prefix, state, dragEnab
             || '<li class="pgm-empty sgp-empty">把条目拖到这里，或用条目菜单里的“移动到分组”</li>');
 
     return `
-        <li class="sgp-block pgm-group sgp-group ${collapsed ? 'collapsed' : ''} ${muted ? 'sgp-group-muted' : ''}" data-sgp-group="${escapeHtml(group.id)}" data-sgp-block="${escapeHtml(group.id)}">
+        <div class="sgp-block pgm-group sgp-group ${collapsed ? 'collapsed' : ''} ${muted ? 'sgp-group-muted' : ''}" data-sgp-group="${escapeHtml(group.id)}" data-sgp-block="${escapeHtml(group.id)}">
             <div class="pgm-group-head sgp-group-head">
                 <span class="pgm-drag sgp-block-drag" draggable="${dragEnabled ? 'true' : 'false'}" data-sgp-drag-block="${escapeHtml(group.id)}" title="拖动分组排序">⠿</span>
                 <button type="button" class="pgm-group-toggle sgp-group-toggle" data-sgp-collapse="${escapeHtml(group.id)}" aria-expanded="${collapsed ? 'false' : 'true'}">
                     <span class="pgm-chevron">▾</span><strong class="pgm-group-name">${escapeHtml(group.name)}</strong><span class="pgm-count">${enabledCount}/${block.members.length}</span>
                 </button>
                 <div class="pgm-group-actions sgp-group-actions">
-                    <button type="button" class="pgm-row-btn sgp-power ${muted ? 'muted' : ''}" data-sgp-power="${escapeHtml(group.id)}" title="${muted ? '恢复整组参与生成' : '整组静音：不参与生成，但保留每条开关'}"><i class="fa-solid ${muted ? 'fa-volume-xmark' : 'fa-volume-high'}"></i></button>
-                    <button type="button" class="pgm-row-btn reorder" data-sgp-block-up="${escapeHtml(group.id)}" ${index === 0 ? 'disabled' : ''} title="上移分组">↑</button>
-                    <button type="button" class="pgm-row-btn reorder" data-sgp-block-down="${escapeHtml(group.id)}" ${index === total - 1 ? 'disabled' : ''} title="下移分组">↓</button>
-                    <button type="button" class="pgm-row-btn" data-sgp-rename="${escapeHtml(group.id)}" title="重命名分组">✎</button>
-                    <button type="button" class="pgm-row-btn danger" data-sgp-delete="${escapeHtml(group.id)}" title="删除分组（条目回到未分组）">×</button>
+                    <button type="button" class="pgm-row-btn sgp-group-more" data-sgp-group-menu="${escapeHtml(group.id)}" data-sgp-group-index="${index}" data-sgp-group-total="${total}" title="更多分组操作" aria-label="更多分组操作"><i class="fa-solid fa-ellipsis"></i></button>
                 </div>
             </div>
-            <ul class="pgm-group-body sgp-group-body">${body}</ul>
-        </li>
+            <div class="pgm-group-body sgp-group-body">${body}</div>
+        </div>
     `;
 }
 
@@ -349,6 +346,8 @@ function renderToolbar(state, blocks) {
 
 /** Draws the grouped prompt list into SillyTavern's own list element. */
 export async function renderGroupedList() {
+    closeRowMenu();
+    closeGroupMenu();
     const manager = getPromptManager();
     const list = manager?.listElement;
     if (!list) return;
@@ -487,9 +486,14 @@ function closeRowMenu() {
     document.getElementById(MENU_ID)?.remove();
 }
 
+function closeGroupMenu() {
+    document.getElementById(GROUP_MENU_ID)?.remove();
+}
+
 /** A compact popover menu in the same visual language as the resource picker. */
 function openRowMenu(anchor, identifier) {
     closeRowMenu();
+    closeGroupMenu();
     const state = readState();
     const prompt = getPromptById(identifier);
     if (!prompt) return;
@@ -578,6 +582,76 @@ function openRowMenu(anchor, identifier) {
                 if (!await confirmAction('从预设移除', `把“${prompt.name ?? identifier}”从当前预设的条目列表移除？条目定义仍然保留，可以再次添加。`)) return;
                 invokeNativeHandler('handleDetach', row);
                 scheduleHostRender(0);
+            }
+        });
+    });
+}
+
+function openGroupMenu(anchor, groupId, index, total) {
+    closeRowMenu();
+    closeGroupMenu();
+    const group = findGroup(readState(), groupId);
+    if (!group) return;
+
+    const muted = group.enabled === false;
+    const menu = document.createElement('div');
+    menu.id = GROUP_MENU_ID;
+    menu.className = 'sgp-group-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = `
+        <button type="button" class="pgm-row-btn sgp-power ${muted ? 'muted' : ''}" data-sgp-group-action="power" title="${muted ? '恢复整组参与生成' : '整组静音：不参与生成，但保留每条开关'}"><i class="fa-solid ${muted ? 'fa-volume-xmark' : 'fa-volume-high'}"></i></button>
+        <button type="button" class="pgm-row-btn" data-sgp-group-action="up" ${index <= 0 ? 'disabled' : ''} title="上移分组">↑</button>
+        <button type="button" class="pgm-row-btn" data-sgp-group-action="down" ${index >= total - 1 ? 'disabled' : ''} title="下移分组">↓</button>
+        <button type="button" class="pgm-row-btn" data-sgp-group-action="rename" title="重命名分组"><i class="fa-solid fa-pencil"></i></button>
+        <button type="button" class="pgm-row-btn danger" data-sgp-group-action="delete" title="删除分组（条目回到未分组）">×</button>
+    `;
+    document.getElementById('srg-root')?.appendChild(menu) ?? document.body.appendChild(menu);
+
+    const rect = anchor.getBoundingClientRect();
+    const gap = 6;
+    const width = menu.offsetWidth || 174;
+    const height = menu.offsetHeight || 42;
+    let left = Math.min(rect.right - width, window.innerWidth - width - gap);
+    let top = rect.bottom + gap;
+    if (top + height > window.innerHeight - gap) top = Math.max(gap, rect.top - height - gap);
+    menu.style.left = `${Math.max(gap, left)}px`;
+    menu.style.top = `${top}px`;
+
+    menu.querySelectorAll('[data-sgp-group-action]').forEach(button => {
+        button.addEventListener('click', async () => {
+            const action = button.dataset.sgpGroupAction;
+            closeGroupMenu();
+            const liveGroup = findGroup(readState(), groupId);
+            if (!liveGroup) return;
+            if (action === 'power') {
+                const name = liveGroup.name;
+                const shouldEnable = liveGroup.enabled === false;
+                setGroupEnabled(groupId, shouldEnable);
+                toast(shouldEnable ? `“${name}”已恢复参与生成` : `“${name}”已整组静音`, 'success');
+                scheduleHostRender(0);
+                rerender();
+                return;
+            }
+            if (action === 'up' || action === 'down') {
+                if (moveBlock(groupId, action === 'up' ? -1 : 1)) rerender();
+                return;
+            }
+            if (action === 'rename') {
+                const name = normalizeName(await promptText('重命名分组', '请输入新的分组名称：', liveGroup.name));
+                if (!name || name === liveGroup.name) return;
+                if (readState().groups.some(item => item.id !== groupId && familyKey(item.name) === familyKey(name))) {
+                    toast('已有同名分组', 'warning');
+                    return;
+                }
+                renameGroup(groupId, name);
+                toast('分组名称已更新', 'success');
+                rerender();
+                return;
+            }
+            if (action === 'delete') {
+                if (!await confirmAction('删除分组', `删除“${liveGroup.name}”？其中的条目会回到未分组，条目本体不会被删除。`)) return;
+                deleteGroup(groupId);
+                rerender();
             }
         });
     });
@@ -743,54 +817,15 @@ function bindListEvents(list, { dragEnabled, searching }) {
             rerender();
         });
     });
-    list.querySelectorAll('[data-sgp-power]').forEach(button => {
-        button.addEventListener('click', () => {
-            const groupId = button.dataset.sgpPower;
-            const group = findGroup(readState(), groupId);
-            if (!group) return;
-            // `group` is the live state object, so decide the message first.
-            const name = group.name;
-            const shouldEnable = group.enabled === false;
-            setGroupEnabled(groupId, shouldEnable);
-            toast(shouldEnable ? `“${name}”已恢复参与生成` : `“${name}”已整组静音`, 'success');
-            scheduleHostRender(0);
-            rerender();
-        });
-    });
-    list.querySelectorAll('[data-sgp-rename]').forEach(button => {
-        button.addEventListener('click', async () => {
-            const groupId = button.dataset.sgpRename;
-            const group = findGroup(readState(), groupId);
-            if (!group) return;
-            const name = normalizeName(await promptText('重命名分组', '请输入新的分组名称：', group.name));
-            if (!name || name === group.name) return;
-            if (readState().groups.some(item => item.id !== groupId && familyKey(item.name) === familyKey(name))) {
-                toast('已有同名分组', 'warning');
-                return;
-            }
-            renameGroup(groupId, name);
-            toast('分组名称已更新', 'success');
-            rerender();
-        });
-    });
-    list.querySelectorAll('[data-sgp-delete]').forEach(button => {
-        button.addEventListener('click', async () => {
-            const groupId = button.dataset.sgpDelete;
-            const group = findGroup(readState(), groupId);
-            if (!group) return;
-            if (!await confirmAction('删除分组', `删除“${group.name}”？其中的条目会回到未分组，条目本体不会被删除。`)) return;
-            deleteGroup(groupId);
-            rerender();
-        });
-    });
-    list.querySelectorAll('[data-sgp-block-up]').forEach(button => {
-        button.addEventListener('click', () => {
-            if (moveBlock(button.dataset.sgpBlockUp, -1)) rerender();
-        });
-    });
-    list.querySelectorAll('[data-sgp-block-down]').forEach(button => {
-        button.addEventListener('click', () => {
-            if (moveBlock(button.dataset.sgpBlockDown, 1)) rerender();
+    list.querySelectorAll('[data-sgp-group-menu]').forEach(button => {
+        button.addEventListener('click', event => {
+            event.stopPropagation();
+            openGroupMenu(
+                button,
+                button.dataset.sgpGroupMenu,
+                Number(button.dataset.sgpGroupIndex) || 0,
+                Number(button.dataset.sgpGroupTotal) || 0,
+            );
         });
     });
 
@@ -1051,17 +1086,19 @@ function bindDragAndDrop(list, { dragEnabled }) {
 
 export function bindGlobalRowMenuDismissal() {
     const dismiss = event => {
-        const menu = document.getElementById(MENU_ID);
-        if (!menu) return;
-        if (!menu.contains(event.target) && !event.target?.closest?.('[data-sgp-menu]')) closeRowMenu();
+        const rowMenu = document.getElementById(MENU_ID);
+        const groupMenu = document.getElementById(GROUP_MENU_ID);
+        if (rowMenu && !rowMenu.contains(event.target) && !event.target?.closest?.('[data-sgp-menu]')) closeRowMenu();
+        if (groupMenu && !groupMenu.contains(event.target) && !event.target?.closest?.('[data-sgp-group-menu]')) closeGroupMenu();
     };
     // Escape must close this menu only. Without stopping propagation the host
     // would also collapse the whole settings drawer behind it.
     const dismissOnEscape = event => {
-        if (event.key !== 'Escape' || !document.getElementById(MENU_ID)) return;
+        if (event.key !== 'Escape' || (!document.getElementById(MENU_ID) && !document.getElementById(GROUP_MENU_ID))) return;
         event.preventDefault();
         event.stopPropagation();
         closeRowMenu();
+        closeGroupMenu();
     };
     document.addEventListener('pointerdown', dismiss, true);
     document.addEventListener('keydown', dismissOnEscape, true);
@@ -1069,6 +1106,7 @@ export function bindGlobalRowMenuDismissal() {
         document.removeEventListener('pointerdown', dismiss, true);
         document.removeEventListener('keydown', dismissOnEscape, true);
         closeRowMenu();
+        closeGroupMenu();
     };
 }
 

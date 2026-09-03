@@ -1,6 +1,6 @@
 export const MODULE_NAME = 'smart_resource_groups';
 export const DISPLAY_NAME = 'SGplus';
-export const VERSION = '3.1.0';
+export const VERSION = '3.2.1';
 
 export const ROOT_ID = 'srg-root';
 export const POPOVER_ID = 'srg-popover';
@@ -21,6 +21,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
     legacyMigrated: false,
     resources: {},
     enhancePromptEntries: true,
+    collapsePresetInterface: true,
     promptDragLocked: false,
     promptAutoSaveOnEntryEdit: false,
     promptGroups: {},
